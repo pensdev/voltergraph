@@ -1,0 +1,46 @@
+{
+  "name": "volter-graph",
+  "version": "0.1.0",
+  "description": "Pixel-art charts for the web. No antialiasing, ever.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "dev": "vite demo",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "preview": "vite-node scripts/preview.ts",
+    "typecheck": "tsc --noEmit",
+    "artifact": "vite-node scripts/build-artifact.ts",
+    "docs": "vite-node scripts/docs-images.ts"
+  },
+  "keywords": [
+    "chart",
+    "pixel-art",
+    "canvas",
+    "graph",
+    "retro",
+    "bitmap-font"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5",
+    "vitest": "^2.1.8"
+  }
+}

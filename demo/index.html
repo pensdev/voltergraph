@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Volter Graph</title>
+    <style>
+      /* ---------------------------------------------------------- tokens */
+      :root {
+        /* Light: the warm tan of a hotel room floor, parchment panels. */
+        --ground: #b3a687;
+        --ground-grid: rgba(43, 43, 58, 0.07);
+        --panel: #ede6d5;
+        --panel-sunk: #e2d9c4;
+        --edge-light: #fffdf6;
+        --edge-dark: #b8ad93;
+        --border: #2b2b3a;
+        --ink: #2b2b3a;
+        --ink-soft: #6f6a5e;
+        --bar: #2b3242;
+        --bar-ink: #f2e9d6;
+        --accent: #a8710a;
+        --accent-bright: #e0a428;
+        /* Gold is never legible as ink on a tan ground, so emphasis is a
+           gold ground with its own foreground token instead. */
+        --on-accent: #fdf8ea;
+        --drop: rgba(43, 43, 58, 0.45);
+        --up: #4d7a1f;
+        --down: #a8332a;
+
+        --step: 8px;
+        --w-page: 1000px;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          --ground: #171b25;
+          --ground-grid: rgba(255, 255, 255, 0.045);
+          --panel: #262a38;
+          --panel-sunk: #1e222e;
+          --edge-light: #454c63;
+          --edge-dark: #10131b;
+          --border: #0c0e14;
+          --ink: #eae6dc;
+          --ink-soft: #9aa0b4;
+          --bar: #323749;
+          --bar-ink: #f2c14e;
+          --accent: #f2c14e;
+          --accent-bright: #f2c14e;
+          --on-accent: #171b25;
+          --drop: rgba(0, 0, 0, 0.6);
+          --up: #8dc44f;
+          --down: #e0625a;
+        }
+      }
+
+      :root[data-theme='dark'] {
+        --ground: #171b25;
+        --ground-grid: rgba(255, 255, 255, 0.045);
+        --panel: #262a38;
+        --panel-sunk: #1e222e;
+        --edge-light: #454c63;
+        --edge-dark: #10131b;
+        --border: #0c0e14;
+        --ink: #eae6dc;
+        --ink-soft: #9aa0b4;
+        --bar: #323749;
+        --bar-ink: #f2c14e;
+        --accent: #f2c14e;
+        --accent-bright: #f2c14e;
+        --on-accent: #171b25;
+        --drop: rgba(0, 0, 0, 0.6);
+        --up: #8dc44f;
+        --down: #e0625a;
+      }
+
+      /* ----------------------------------------------------------- base */
+      *,
+      *::before,
+      *::after { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        padding: clamp(20px, 4vw, 48px) clamp(12px, 3vw, 32px) 72px;
+        background-color: var(--ground);
+        /* A 4px checkerboard on the ground, echoing the library's dithering. */
+        background-image:
+          linear-gradient(45deg, var(--ground-grid) 25%, transparent 25%, transparent 75%, var(--ground-grid) 75%),
+          linear-gradient(45deg, var(--ground-grid) 25%, transparent 25%, transparent 75%, var(--ground-grid) 75%);
+        background-size: 4px 4px;
+        background-position: 0 0, 2px 2px;
+        color: var(--ink);
+        font: 13px/1.6 ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+        font-variant-numeric: tabular-nums;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .page {
+        max-width: var(--w-page);
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: calc(var(--step) * 3);
+      }
+
+      /* --------------------------------------------------------- panels */
+      /* Every surface is the same beveled box: hard border, light inner edge
+         top-left, dark inner edge bottom-right, hard offset shadow. */
+      .panel {
+        background: var(--panel);
+        border: 2px solid var(--border);
+        box-shadow:
+          inset 1px 1px 0 var(--edge-light),
+          inset -1px -1px 0 var(--edge-dark),
+          4px 4px 0 var(--drop);
+        min-width: 0;
+      }
+
+      .panel__bar {
+        background: var(--bar);
+        color: var(--bar-ink);
+        border-bottom: 2px solid var(--border);
+        padding: 6px 10px;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .panel__title {
+        margin: 0;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .panel__note {
+        font-size: 11px;
+        color: var(--bar-ink);
+        opacity: 0.7;
+        letter-spacing: 0.02em;
+      }
+
+      .panel__body { padding: 12px; min-width: 0; }
+      .panel__body--flush { padding: 8px; }
+
+      /* --------------------------------------------------------- header */
+      .masthead {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: calc(var(--step) * 2);
+      }
+
+      .masthead__mark { display: flex; flex-direction: column; gap: 10px; }
+      /* The wordmark is drawn with the library's own bitmap font. */
+      .wordmark canvas { image-rendering: pixelated; }
+
+      .masthead__tag {
+        margin: 0;
+        max-width: 62ch;
+        color: var(--ink);
+        opacity: 0.85;
+      }
+      .masthead__tag strong {
+        background: var(--accent);
+        color: var(--on-accent);
+        font-weight: 700;
+        padding: 1px 5px;
+        box-decoration-break: clone;
+        -webkit-box-decoration-break: clone;
+      }
+
+      .chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+      .chip {
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 3px 8px;
+        background: var(--panel);
+        color: var(--ink-soft);
+        border: 2px solid var(--border);
+        box-shadow: 2px 2px 0 var(--drop);
+      }
+
+      /* ---------------------------------------------------------- stats */
+      .stats {
+        display: grid;
+        gap: calc(var(--step) * 1.5);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      @media (min-width: 720px) {
+        .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      }
+
+      .stat { padding: 10px 12px 12px; }
+      .stat__label {
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+      .stat__value {
+        font-size: 24px;
+        font-weight: 700;
+        line-height: 1.15;
+        margin-top: 4px;
+        color: var(--ink);
+      }
+      .stat__unit { font-size: 12px; color: var(--ink-soft); font-weight: 400; }
+      .stat__delta {
+        margin-top: 6px;
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 2px 6px;
+        border: 2px solid var(--border);
+        color: var(--panel);
+      }
+      .stat__delta--up { background: var(--up); }
+      .stat__delta--down { background: var(--down); }
+
+      /* --------------------------------------------------------- charts */
+      .chart { width: 100%; min-width: 0; }
+      .chart--hero { height: clamp(240px, 38vw, 360px); }
+      .chart--half { height: 260px; }
+
+      .split {
+        display: grid;
+        gap: calc(var(--step) * 3);
+        grid-template-columns: minmax(0, 1fr);
+      }
+      @media (min-width: 760px) {
+        .split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+      }
+
+      .caption {
+        margin: 10px 0 0;
+        color: var(--ink-soft);
+        font-size: 12px;
+        max-width: 68ch;
+      }
+      .caption strong { color: var(--ink); font-weight: 700; }
+
+      /* -------------------------------------------------------- controls */
+      .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+
+      button {
+        font: inherit;
+        font-size: 12px;
+        padding: 6px 12px;
+        cursor: pointer;
+        color: var(--ink);
+        background: var(--panel-sunk);
+        border: 2px solid var(--border);
+        box-shadow:
+          inset 1px 1px 0 var(--edge-light),
+          inset -1px -1px 0 var(--edge-dark),
+          3px 3px 0 var(--drop);
+      }
+      button:hover { background: var(--panel); }
+      button:active {
+        box-shadow:
+          inset -1px -1px 0 var(--edge-light),
+          inset 1px 1px 0 var(--edge-dark);
+        transform: translate(3px, 3px);
+      }
+      button:focus-visible { outline: 3px solid var(--accent-bright); outline-offset: 2px; }
+      @media (prefers-reduced-motion: reduce) {
+        button:active { transform: none; }
+      }
+
+      /* --------------------------------------------------------- footer */
+      .colophon {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 18px;
+        color: var(--ink);
+        opacity: 0.75;
+        font-size: 12px;
+      }
+      .colophon code {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        padding: 1px 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="masthead">
+        <div class="masthead__mark">
+          <div class="wordmark" id="wordmark"></div>
+          <p class="masthead__tag">
+            Pixel-art charts for the web. Every pixel is placed by hand into a software
+            framebuffer, so nothing is ever antialiased — <strong>no blur, no half-pixels,
+            no smoothing</strong>. Tracking the rare furni market, because that is what
+            these charts were built to look like.
+          </p>
+        </div>
+        <div class="chip-row">
+          <span class="chip">Bar</span>
+          <span class="chip">Line</span>
+          <span class="chip">Pie</span>
+          <span class="chip">11.5 KB</span>
+          <span class="chip">No deps</span>
+        </div>
+      </header>
+
+      <section class="stats" aria-label="Market summary">
+        <div class="panel stat">
+          <div class="stat__label">Portfolio value</div>
+          <div class="stat__value">1,842 <span class="stat__unit">cr</span></div>
+          <span class="stat__delta stat__delta--up">+12.4% season</span>
+        </div>
+        <div class="panel stat">
+          <div class="stat__label">Top mover</div>
+          <div class="stat__value">Throne</div>
+          <span class="stat__delta stat__delta--up">+135 cr</span>
+        </div>
+        <div class="panel stat">
+          <div class="stat__label">Biggest drop</div>
+          <div class="stat__value">Dragon</div>
+          <span class="stat__delta stat__delta--down">−70 cr</span>
+        </div>
+        <div class="panel stat">
+          <div class="stat__label">Trades cleared</div>
+          <div class="stat__value">5,110</div>
+          <span class="stat__delta stat__delta--up">+8.1% week</span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel__bar">
+          <h2 class="panel__title">Rare values over time</h2>
+          <span class="panel__note">Credits · 12 months · hover or tap for a column</span>
+        </div>
+        <div class="panel__body panel__body--flush">
+          <div class="chart chart--hero" id="rares"></div>
+        </div>
+        <div class="panel__body" style="padding-top: 0">
+          <p class="caption">
+            The <strong>Dragon Lamp</strong> collapse in June is what this chart exists to
+            show: a rare re-dropped in the catalogue floods the market and loses two thirds
+            of its trade value, then climbs back as stock is hoarded again. Every line is
+            1px Bresenham, snapped to whole pixels — turn on the fills and each series
+            dithers at a sparser density than the last, which is how they stay apart where
+            alpha would turn to mud.
+          </p>
+          <div class="controls" style="margin-top: 12px">
+            <button id="reshuffle" type="button">Reshuffle market</button>
+            <button id="toggle-area" type="button">Show fills</button>
+            <button id="toggle-points" type="button">Toggle markers</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="split">
+        <section class="panel">
+          <div class="panel__bar">
+            <h2 class="panel__title">Where the credits go</h2>
+            <span class="panel__note">Share of spend</span>
+          </div>
+          <div class="panel__body panel__body--flush">
+            <div class="chart chart--half" id="spend"></div>
+          </div>
+          <div class="panel__body" style="padding-top: 0">
+            <p class="caption">
+              An arc is a curve, and every vector renderer resolves that with antialiasing.
+              This pie tests each pixel's angle into a slice mask, then reads the outlines
+              off the <strong>boundaries in that mask</strong> — circumference, dividers and
+              hole in one pass, all exactly 1px.
+            </p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel__bar">
+            <h2 class="panel__title">Trades by rare</h2>
+            <span class="panel__note">This season</span>
+          </div>
+          <div class="panel__body panel__body--flush">
+            <div class="chart chart--half" id="volume"></div>
+          </div>
+          <div class="panel__body" style="padding-top: 0">
+            <p class="caption">
+              The <strong>HC Sofa</strong> clears more trades than the Throne despite being
+              worth a third as much — cheap rares are the small change of the trading
+              lounge.
+            </p>
+          </div>
+        </section>
+      </div>
+
+      <div class="split">
+        <section class="panel">
+          <div class="panel__bar">
+            <h2 class="panel__title">Week-on-week change</h2>
+            <span class="panel__note">Credits, ± on the baseline</span>
+          </div>
+          <div class="panel__body panel__body--flush">
+            <div class="chart chart--half" id="change"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel__bar">
+            <h2 class="panel__title">Habbos in the hotel</h2>
+            <span class="panel__note">By hour · stepped</span>
+          </div>
+          <div class="panel__body panel__body--flush">
+            <div class="chart chart--half" id="population"></div>
+          </div>
+        </section>
+      </div>
+
+      <section class="panel">
+        <div class="panel__bar">
+          <h2 class="panel__title">Colophon</h2>
+          <span class="panel__note">MIT</span>
+        </div>
+        <div class="panel__body">
+          <div class="colophon">
+            <span>Wordmark drawn with the bundled <code>volter5</code> bitmap face.</span>
+            <span>Charts render to a <code>Uint32Array</code> framebuffer.</span>
+            <span>Integer zoom only — never fractional.</span>
+            <span>Every chart also emits a hidden data table.</span>
+          </div>
+        </div>
+      </section>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
