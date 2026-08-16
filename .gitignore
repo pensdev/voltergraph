@@ -4,9 +4,10 @@ preview/
 *.log
 .DS_Store
 
+# Editor and tool state, not project config.
+.claude/
+.idea/
+.vscode/
+
 # Golden references are committed; failure artifacts are not.
 test/__golden__/*.actual.png
-demo/_artifact_check.html
-
-# Local machine state, not project config.
-.claude/settings.local.json

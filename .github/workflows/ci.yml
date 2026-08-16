@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      # docs/index.html is a committed build output and the live GitHub Pages
+      # site, so it can silently drift from demo/. Rebuild it and fail if the
+      # committed copy is stale rather than serving an old page.
+      - name: Check the published demo page is up to date
+        run: |
+          npm run artifact
+          if ! git diff --quiet -- docs/index.html; then
+            echo "::error file=docs/index.html::docs/index.html is stale. Run 'npm run artifact' and commit the result."
+            git diff --stat -- docs/index.html
+            exit 1
+          fi

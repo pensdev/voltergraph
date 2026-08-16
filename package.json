@@ -25,7 +25,9 @@
     "preview": "vite-node scripts/preview.ts",
     "typecheck": "tsc --noEmit",
     "artifact": "vite-node scripts/build-artifact.ts",
-    "docs": "vite-node scripts/docs-images.ts"
+    "docs": "vite-node scripts/docs-images.ts",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "prepare": "tsup"
   },
   "keywords": [
     "chart",
@@ -42,5 +44,22 @@
     "typescript": "^5.7.2",
     "vite": "^6.0.5",
     "vitest": "^2.1.8"
+  },
+  "author": "Zach Crandell (https://github.com/pensdev)",
+  "homepage": "https://pensdev.github.io/voltergraph/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pensdev/voltergraph.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pensdev/voltergraph/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "unpkg": "./dist/index.global.js",
+  "jsdelivr": "./dist/index.global.js",
+  "publishConfig": {
+    "access": "public"
   }
 }

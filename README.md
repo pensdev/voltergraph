@@ -1,8 +1,13 @@
 # Volter Graph
 
+[![CI](https://github.com/pensdev/voltergraph/actions/workflows/ci.yml/badge.svg)](https://github.com/pensdev/voltergraph/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Pixel-art charts for the web. No antialiasing, ever.
 
 Bar, line and pie. 11.5 KB min+gzip, zero runtime dependencies, TypeScript throughout.
+
+**[Live demo →](https://pensdev.github.io/voltergraph/)**
 
 ![A line chart of Habbo rare furni trade values across twelve months, drawn entirely in hard pixels](docs/rares.png)
 
@@ -10,6 +15,14 @@ Bar, line and pie. 11.5 KB min+gzip, zero runtime dependencies, TypeScript throu
 |:--|:--|
 | ![Bar chart of trades cleared per rare](docs/bar.png) | ![Extruded pie chart of credit spend](docs/pie.png) |
 | ![Stepped area chart of hotel population by hour](docs/line-area.png) | Every image here is a real render at 3x nearest-neighbour, not a mockup. Regenerate with `npm run docs`. |
+
+## Install
+
+Not on npm yet. Install from the repository:
+
+```bash
+npm install github:pensdev/voltergraph
+```
 
 ```ts
 import { VolterGraph } from 'volter-graph';
