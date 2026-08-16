@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { compileFont, measureText } from '../src/core/font.js';
-import { volter5 } from '../src/core/fonts/volter5.js';
+import { volterGoldfish } from '../src/core/fonts/volter-goldfish.js';
+import { volterGoldfishBold } from '../src/core/fonts/volter-goldfish-bold.js';
 import { Framebuffer } from '../src/core/framebuffer.js';
 import { origins } from '../src/theme/palette.js';
 import { layoutLegend, drawCategoryLabels, layoutCartesian } from '../src/charts/layout.js';
@@ -9,10 +10,11 @@ import { drawPieChart } from '../src/charts/pie.js';
 import { renderBar, renderLine, renderPie, sales, trend, shares } from './fixtures.js';
 import type { DrawContext } from '../src/charts/types.js';
 
-const font = compileFont(volter5);
+const font = compileFont(volterGoldfish);
+const boldFont = compileFont(volterGoldfishBold);
 
 function ctx(w: number, h: number): DrawContext {
-  return { fb: new Framebuffer(w, h), font, theme: origins, width: w, height: h };
+  return { fb: new Framebuffer(w, h), font, bold: boldFont, theme: origins, width: w, height: h };
 }
 
 /** Rows of ink in the framebuffer, used to check nothing spills off-canvas. */

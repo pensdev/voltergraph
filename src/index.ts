@@ -1,5 +1,6 @@
 import { compileFont, type BitmapFont } from './core/font.js';
-import { volter5 } from './core/fonts/volter5.js';
+import { volterGoldfish } from './core/fonts/volter-goldfish.js';
+import { volterGoldfishBold } from './core/fonts/volter-goldfish-bold.js';
 import { CanvasRenderer, type CanvasRendererOptions } from './render/canvas.js';
 import { resolveTheme } from './theme/palette.js';
 import { drawBarChart } from './charts/bar.js';
@@ -16,19 +17,41 @@ import type {
   RenderResult,
 } from './charts/types.js';
 
-export type ChartConfig = { render?: CanvasRendererOptions; font?: BitmapFont } & (
+/**
+ * A face and its bold companion. Bitmap type cannot be synthetically
+ * emboldened at these sizes, so a weight is a separate drawn face or nothing.
+ */
+export interface FontPair {
+  regular: BitmapFont;
+  bold?: BitmapFont;
+}
+
+export type ChartConfig = {
+  render?: CanvasRendererOptions;
+  /** A single face, or a regular/bold pair. Defaults to the bundled Volter. */
+  font?: BitmapFont | FontPair;
+} & (
   | { type: 'bar'; data: ChartData; options?: BarOptions }
   | { type: 'line'; data: ChartData; options?: LineOptions }
   | { type: 'pie'; data: ChartData; options?: PieOptions }
 );
 
-const defaultFont = compileFont(volter5);
+const defaultFonts: FontPair = {
+  regular: compileFont(volterGoldfish),
+  bold: compileFont(volterGoldfishBold),
+};
+
+function resolveFonts(font: BitmapFont | FontPair | undefined): Required<FontPair> {
+  if (!font) return { regular: defaultFonts.regular, bold: defaultFonts.bold! };
+  if ('regular' in font) return { regular: font.regular, bold: font.bold ?? font.regular };
+  return { regular: font, bold: font };
+}
 
 export class VolterGraph {
   readonly renderer: CanvasRenderer;
 
   private table: HTMLElement;
-  private font: BitmapFont;
+  private fonts: Required<FontPair>;
   private config: ChartConfig;
   private result: RenderResult | null = null;
   private hover: Hit | null = null;
@@ -41,7 +64,7 @@ export class VolterGraph {
     if (!host) throw new Error(`volter-graph: no element matching ${String(target)}`);
 
     this.config = config;
-    this.font = config.font ?? defaultFont;
+    this.fonts = resolveFonts(config.font);
 
     if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
 
@@ -81,7 +104,8 @@ export class VolterGraph {
     const options = this.config.options ?? {};
     const ctx: DrawContext = {
       fb: this.renderer.fb,
-      font: this.font,
+      font: this.fonts.regular,
+      bold: this.fonts.bold,
       theme: resolveTheme(options.theme),
       width: this.renderer.fb.width,
       height: this.renderer.fb.height,
@@ -189,6 +213,8 @@ export { Framebuffer } from './core/framebuffer.js';
 export { compileFont, drawText, measureText } from './core/font.js';
 export type { BitmapFont, FontSpec, GlyphSpec, TextOptions } from './core/font.js';
 export { volter5 } from './core/fonts/volter5.js';
+export { volterGoldfish } from './core/fonts/volter-goldfish.js';
+export { volterGoldfishBold } from './core/fonts/volter-goldfish-bold.js';
 export * as raster from './core/raster.js';
 export * as dither from './core/dither.js';
 export { panel, inset } from './core/nineslice.js';

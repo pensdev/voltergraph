@@ -5,7 +5,7 @@
 
 Pixel-art charts for the web. No antialiasing, ever.
 
-Bar, line and pie. 11.5 KB min+gzip, zero runtime dependencies, TypeScript throughout.
+Bar, line and pie. 13.6 KB min+gzip, zero runtime dependencies, TypeScript throughout.
 
 **[Live demo →](https://pensdev.github.io/voltergraph/)**
 
@@ -59,6 +59,7 @@ the dev server can hot-reload; use it with `npm run dev`.
 | `npm run build` | ESM, CJS, IIFE and types into `dist/` |
 | `npm run preview` | Sample renders into `preview/` for eyeballing |
 | `npm run docs` | Regenerates the README images |
+| `npm run import-font` | Converts a pixel TTF into a bitmap `FontSpec` |
 | `npm run artifact` | Rebuilds `docs/index.html`, the self-contained page |
 
 ## Why it isn't built on Canvas2D
@@ -123,16 +124,9 @@ deterministic place. Line columns use the same rule.
 thickener produces lumpy joins. There is no smooth/spline option for the same
 reason — a Catmull-Rom curve at 1px is indistinguishable from noise.
 
-**Text is a bitmap.** `src/core/fonts/volter5.ts` is a hand-drawn 5px-cap face
-stored as ASCII art. Glyphs are `[yOffset, ...rows]` with `#` for ink:
-
-```ts
-A: [0, '###', '#.#', '###', '#.#', '#.#'],
-```
-
-Editing it directly is the intended workflow — at this size every pixel is a
-design decision and a hinted vector face just produces mush. All ten digits
-share one advance width so numeric columns line up.
+**Text is a bitmap.** Glyphs are blitted from stored bitmaps, never rendered
+from outlines at draw time — at this size a hinted vector face just produces
+mush. See [Fonts](#fonts).
 
 ## Responsive behaviour
 
@@ -220,11 +214,41 @@ Bar, line and pie are done. Scatter and stacked bars are not written yet — the
 rasterizer and scales already support both, so they are chart-layer work rather
 than new plumbing.
 
-## A note on the name
+## Fonts
 
-Volter and Volter Goldfish are Ben Johnson's fonts and are not freely
-redistributable, so nothing here is derived from them. The bundled `volter5` face
-is original work; swap in any other bitmap font via `compileFont`.
+The default face is **Volter (Goldfish)**, with its bold companion, imported
+from the original TrueType files by `npm run import-font` and stored as bitmap
+data. A pixel typeface is only itself at one size — its outlines are rectangles
+on a grid — so the importer rasterizes at the design ppem of 9px, where the
+result is the intended bitmap exactly rather than a hinted approximation.
+
+Bold is a genuinely separate face. Bitmap type cannot be synthetically
+emboldened; smearing a 1px stem sideways just makes it muddy, so weight has to
+be drawn, not computed. Titles and the first line of a tooltip use it.
+
+Import any other pixel font the same way:
+
+```bash
+npm run import-font -- --input path/to/font.ttf \
+  --out src/core/fonts/my-font.ts --name myFont --size 9
+```
+
+Also bundled is `volter5`, a hand-drawn 5px-cap face written directly as
+editable ASCII art — glyphs are `[yOffset, ...rows]` with `#` for ink:
+
+```ts
+A: [0, '###', '#.#', '###', '#.#', '#.#'],
+```
+
+Pass any face, or a `{ regular, bold }` pair, as `font` in the chart config.
+
+**Provenance.** Volter and Volter (Goldfish) were created by
+[Sulake](http://www.sulake.com/) for Habbo Hotel and are their property; this
+project is not affiliated with or endorsed by Sulake. The fonts are included
+here for the Habbo-styled presentation they exist for, and the MIT licence
+covers this project's own code, not the typefaces. If you are redistributing
+this library and would rather not ship them, `volter5` is original work and
+carries no such restriction — make it the default in `src/index.ts`.
 
 ## License
 

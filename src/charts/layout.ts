@@ -2,7 +2,7 @@ import { drawText, measureText } from '../core/font.js';
 import { dottedHLine } from '../core/raster.js';
 import { inset } from '../core/nineslice.js';
 import { rect } from '../core/raster.js';
-import { darken, luminance, toColor, type Color } from '../core/color.js';
+import { darken, toColor, type Color } from '../core/color.js';
 import { fitAxis, type AxisFit } from '../scale/ticks.js';
 import { scaleFromFit, type LinearScale } from '../scale/linear.js';
 import { seriesColor } from '../theme/palette.js';
@@ -191,7 +191,7 @@ export function drawCartesianFrame(
   const pad = { top: options.padding?.top ?? 3, left: options.padding?.left ?? 3 };
 
   if (options.title) {
-    drawText(fb, font, pad.left, pad.top, options.title, theme.ink, {
+    drawText(fb, ctx.bold, pad.left, pad.top, options.title, theme.ink, {
       shadow: theme.light,
       shadowOffset: [0, 1],
     });
@@ -285,9 +285,13 @@ export function drawTooltip(
   const hasSwatch = swatches?.some((s) => s !== null) ?? false;
   const indent = hasSwatch ? SWATCH + 2 : 0;
 
+  // The first line names what is hovered and carries the weight; the rest are
+  // values, which read better at regular.
+  const faceFor = (i: number) => (i === 0 ? ctx.bold : font);
+
   let textW = 0;
   lines.forEach((l, i) => {
-    const own = measureText(font, l) + (swatches?.[i] ? indent : 0);
+    const own = measureText(faceFor(i), l) + (swatches?.[i] ? indent : 0);
     textW = Math.max(textW, own);
   });
 
@@ -309,7 +313,11 @@ export function drawTooltip(
     shadow: theme.shadow,
   });
 
-  const textColor = luminance(theme.panel) > 0.5 ? theme.ink : theme.light;
+  // `ink` is the theme's readable text colour against its own surfaces, in
+  // both light and dark. An earlier luminance test picked `light` on dark
+  // themes, but that token is a bevel highlight — near the panel colour, and
+  // close to unreadable on it.
+  const textColor = theme.ink;
   lines.forEach((l, i) => {
     const ly = y + 3 + i * (font.height + 1);
     const sw = swatches?.[i];
@@ -318,7 +326,7 @@ export function drawTooltip(
       fb.fill(x + 3, sy, SWATCH, SWATCH, sw);
       rect(fb, x + 3, sy, SWATCH, SWATCH, darken(sw, 0.45));
     }
-    drawText(fb, font, x + 3 + (sw ? indent : 0), ly, l, textColor);
+    drawText(fb, faceFor(i), x + 3 + (sw ? indent : 0), ly, l, textColor);
   });
 }
 

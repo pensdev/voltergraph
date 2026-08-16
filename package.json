@@ -27,7 +27,8 @@
     "artifact": "vite-node scripts/build-artifact.ts",
     "docs": "vite-node scripts/docs-images.ts",
     "prepublishOnly": "npm run typecheck && npm test && npm run build",
-    "prepare": "tsup"
+    "prepare": "tsup",
+    "import-font": "vite-node scripts/import-font.ts"
   },
   "keywords": [
     "chart",
@@ -40,6 +41,8 @@
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^22.20.1",
+    "@types/opentype.js": "^1.3.10",
+    "opentype.js": "^2.0.0",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
     "vite": "^6.0.5",

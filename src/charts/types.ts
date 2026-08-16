@@ -63,6 +63,13 @@ export interface PieOptions extends ChartOptions {
 export interface DrawContext {
   fb: Framebuffer;
   font: BitmapFont;
+  /**
+   * Face for titles and the emphasised line of a tooltip. A bitmap font cannot
+   * be synthetically emboldened — smearing a 1px stem sideways just makes it
+   * blurry at this size — so weight has to be a second hand-drawn face.
+   * Resolves to `font` when the pair has no bold.
+   */
+  bold: BitmapFont;
   theme: Theme;
   width: number;
   height: number;

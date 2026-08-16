@@ -1,5 +1,6 @@
 import { compileFont } from '../src/core/font.js';
-import { volter5 } from '../src/core/fonts/volter5.js';
+import { volterGoldfish } from '../src/core/fonts/volter-goldfish.js';
+import { volterGoldfishBold } from '../src/core/fonts/volter-goldfish-bold.js';
 import { Framebuffer } from '../src/core/framebuffer.js';
 import { resolveTheme } from '../src/theme/palette.js';
 import { drawBarChart } from '../src/charts/bar.js';
@@ -16,12 +17,14 @@ import type {
   RenderResult,
 } from '../src/charts/types.js';
 
-export const font = compileFont(volter5);
+export const font = compileFont(volterGoldfish);
+export const boldFont = compileFont(volterGoldfishBold);
 
 function context(fb: Framebuffer, options: ChartOptions): DrawContext {
   return {
     fb,
     font,
+    bold: boldFont,
     theme: resolveTheme(options.theme),
     width: fb.width,
     height: fb.height,

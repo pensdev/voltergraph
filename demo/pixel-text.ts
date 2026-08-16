@@ -3,12 +3,12 @@ import {
   compileFont,
   drawText,
   measureText,
-  volter5,
+  volterGoldfishBold,
   hex,
   type Color,
 } from '../src/index.js';
 
-const font = compileFont(volter5);
+const font = compileFont(volterGoldfishBold);
 
 export interface PixelTextOptions {
   scale?: number;
