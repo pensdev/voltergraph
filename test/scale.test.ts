@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fitAxis, niceStep } from '../src/scale/ticks.js';
+import { fitAxis, niceStep, decimalsForStep } from '../src/scale/ticks.js';
 import { scaleFromFit } from '../src/scale/linear.js';
 import { bandScale, subdivide } from '../src/scale/band.js';
 
@@ -11,6 +11,48 @@ describe('niceStep', () => {
     expect(niceStep(7)).toBe(10);
     expect(niceStep(23)).toBe(50);
     expect(niceStep(0.03)).toBe(0.05);
+  });
+
+  it('lands exactly on the decade boundaries', () => {
+    // These are where a Math.log10 that is off by an ulp flips the answer, so
+    // they are the cases the transcendental-free implementation exists for.
+    for (const exp of [-6, -3, -1, 0, 1, 3, 6, 9]) {
+      let p = 1;
+      for (let i = 0; i < Math.abs(exp); i++) p = exp < 0 ? p / 10 : p * 10;
+      expect(niceStep(p), `niceStep(1e${exp})`).toBe(p);
+    }
+  });
+
+  it('is monotonic — a larger rough step never yields a smaller nice step', () => {
+    let previous = 0;
+    for (let v = 0.001; v < 10000; v *= 1.07) {
+      const step = niceStep(v);
+      expect(step).toBeGreaterThanOrEqual(previous);
+      previous = step;
+    }
+  });
+
+  it('survives degenerate input', () => {
+    expect(niceStep(0)).toBe(1);
+    expect(niceStep(-5)).toBe(1);
+    expect(niceStep(NaN)).toBe(1);
+    expect(niceStep(Infinity)).toBe(1);
+  });
+});
+
+describe('decimalsForStep', () => {
+  it('counts the places a step actually needs', () => {
+    expect(decimalsForStep(100)).toBe(0);
+    expect(decimalsForStep(1)).toBe(0);
+    expect(decimalsForStep(0.5)).toBe(1);
+    expect(decimalsForStep(0.05)).toBe(2);
+    expect(decimalsForStep(0.002)).toBe(3);
+  });
+
+  it('never returns a negative or unbounded count', () => {
+    expect(decimalsForStep(0)).toBe(0);
+    expect(decimalsForStep(NaN)).toBe(0);
+    expect(decimalsForStep(1e-30)).toBeLessThanOrEqual(12);
   });
 });
 

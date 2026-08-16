@@ -1,5 +1,92 @@
-import { deflateSync } from 'node:zlib';
+import { deflateSync, inflateSync } from 'node:zlib';
 import type { Framebuffer } from '../src/core/framebuffer.js';
+
+export interface DecodedPNG {
+  width: number;
+  height: number;
+  /** RGBA bytes, same layout as `Framebuffer.bytes()`. */
+  data: Uint8ClampedArray;
+}
+
+/**
+ * Decodes PNGs produced by `encodePNG` — 8-bit RGBA, filter type 0, one IDAT.
+ * Deliberately not a general decoder; it only has to read our own output, and
+ * that lets golden comparisons work on pixels instead of compressed bytes.
+ */
+export function decodePNG(buf: Buffer): DecodedPNG {
+  if (buf.readUInt32BE(0) !== 0x89504e47) throw new Error('decodePNG: not a PNG');
+
+  let offset = 8;
+  let width = 0;
+  let height = 0;
+  const idat: Buffer[] = [];
+
+  while (offset < buf.length) {
+    const length = buf.readUInt32BE(offset);
+    const type = buf.toString('ascii', offset + 4, offset + 8);
+    const data = buf.subarray(offset + 8, offset + 8 + length);
+
+    if (type === 'IHDR') {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      if (data[8] !== 8 || data[9] !== 6) {
+        throw new Error('decodePNG: expected 8-bit RGBA');
+      }
+    } else if (type === 'IDAT') {
+      idat.push(data);
+    } else if (type === 'IEND') {
+      break;
+    }
+    offset += 12 + length;
+  }
+
+  const raw = inflateSync(Buffer.concat(idat));
+  const stride = width * 4;
+  const out = new Uint8ClampedArray(stride * height);
+
+  for (let y = 0; y < height; y++) {
+    const src = y * (stride + 1);
+    if (raw[src] !== 0) throw new Error(`decodePNG: unexpected filter ${raw[src]}`);
+    out.set(raw.subarray(src + 1, src + 1 + stride), y * stride);
+  }
+
+  return { width, height, data: out };
+}
+
+export interface PixelDiff {
+  differing: number;
+  total: number;
+  /** First differing pixel, for pointing at the problem. */
+  first: { x: number; y: number } | null;
+}
+
+export function diffPixels(fb: Framebuffer, golden: DecodedPNG): PixelDiff {
+  if (fb.width !== golden.width || fb.height !== golden.height) {
+    throw new Error(
+      `size mismatch: rendered ${fb.width}x${fb.height}, golden ${golden.width}x${golden.height}`
+    );
+  }
+  const actual = fb.bytes();
+  let differing = 0;
+  let first: PixelDiff['first'] = null;
+
+  for (let i = 0; i < golden.data.length; i += 4) {
+    // The encoder forces alpha to 255, so compare RGB and ignore alpha.
+    if (
+      actual[i] !== golden.data[i] ||
+      actual[i + 1] !== golden.data[i + 1] ||
+      actual[i + 2] !== golden.data[i + 2]
+    ) {
+      differing++;
+      if (!first) {
+        const p = i / 4;
+        first = { x: p % golden.width, y: Math.floor(p / golden.width) };
+      }
+    }
+  }
+
+  return { differing, total: golden.width * golden.height, first };
+}
 
 /**
  * Minimal PNG encoder so golden-image tests need no browser and no deps.

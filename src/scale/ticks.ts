@@ -35,11 +35,28 @@ export interface AxisFitOptions {
   includeZero?: boolean;
 }
 
+/**
+ * Largest power of ten not exceeding `v`, found by exact multiplication and
+ * division rather than `Math.log10`.
+ *
+ * ECMAScript leaves `Math.log10` and `Math.pow` implementation-approximated,
+ * so they may return results differing by an ulp between platforms. Feeding
+ * that into `Math.floor` turns an invisible rounding difference into a
+ * different decade, a different tick step, and a visibly different chart. The
+ * basic operators are exactly specified by IEEE 754, so this loop gives the
+ * same answer everywhere.
+ */
+function decade(v: number): number {
+  let pow = 1;
+  while (pow * 10 <= v) pow *= 10;
+  while (pow > v) pow /= 10;
+  return pow;
+}
+
 /** Nearest 1/2/5 x 10^n at or above `rough`. */
 export function niceStep(rough: number): number {
   if (!(rough > 0) || !Number.isFinite(rough)) return 1;
-  const exp = Math.floor(Math.log10(rough));
-  const pow = Math.pow(10, exp);
+  const pow = decade(rough);
   const frac = rough / pow;
   const nice = frac <= 1 ? 1 : frac <= 2 ? 2 : frac <= 5 ? 5 : 10;
   return nice * pow;
@@ -47,8 +64,7 @@ export function niceStep(rough: number): number {
 
 /** Next step up in the 1/2/5 sequence. */
 function nextStep(step: number): number {
-  const exp = Math.floor(Math.log10(step) + 1e-9);
-  const pow = Math.pow(10, exp);
+  const pow = decade(step);
   const frac = Math.round(step / pow);
   if (frac < 2) return 2 * pow;
   if (frac < 5) return 5 * pow;
@@ -57,8 +73,8 @@ function nextStep(step: number): number {
 
 /** Kills float noise like 0.30000000000000004 in tick labels. */
 function snap(value: number, step: number): number {
-  const decimals = Math.max(0, -Math.floor(Math.log10(step) + 1e-9));
-  const f = Math.pow(10, Math.min(12, decimals));
+  let f = 1;
+  for (let i = 0, d = decimalsForStep(step); i < d; i++) f *= 10;
   return Math.round(value * f) / f;
 }
 
@@ -124,5 +140,12 @@ export function fitAxis(
 
 /** Decimal places implied by a step, for consistent tick label formatting. */
 export function decimalsForStep(step: number): number {
-  return Math.max(0, Math.min(12, -Math.floor(Math.log10(step) + 1e-9)));
+  if (!(step > 0) || !Number.isFinite(step)) return 0;
+  let pow = decade(step);
+  let decimals = 0;
+  while (pow < 1 && decimals < 12) {
+    pow *= 10;
+    decimals++;
+  }
+  return decimals;
 }

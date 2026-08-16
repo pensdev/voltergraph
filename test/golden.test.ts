@@ -2,8 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createHash } from 'node:crypto';
-import { encodePNG } from './png.js';
+import { encodePNG, decodePNG, diffPixels } from './png.js';
 import {
   renderBar,
   renderLine,
@@ -22,26 +21,59 @@ const dir = join(dirname(fileURLToPath(import.meta.url)), '__golden__');
 mkdirSync(dir, { recursive: true });
 
 /**
- * Golden-image comparison. Because nothing here is antialiased and every
- * coordinate is an integer, renders are byte-identical across machines — so
- * an exact match is a fair assertion, not a flaky one.
+ * Golden-image comparison, done on decoded pixels rather than on a hash of the
+ * PNG bytes. Two renders that agree pixel-for-pixel can still compress to
+ * different bytes, and a hash mismatch reports nothing useful about what
+ * actually changed; a pixel count says whether one anti-aliased edge crept in
+ * or the whole chart moved.
+ *
+ * `maxDiffPixels` exists for one narrow reason. Everything the rasterizer does
+ * with the basic operators is exactly specified by IEEE 754 and therefore
+ * identical on every platform, but ECMAScript explicitly leaves `Math.atan2`,
+ * `Math.sin` and `Math.cos` implementation-approximated. The pie decides slice
+ * membership from an angle, so on a different CPU architecture a handful of
+ * pixels sitting exactly on a slice boundary can fall the other way. That is a
+ * property of the language, not a bug to fix, so those charts carry a small
+ * explicit allowance and everything else is held to exact equality.
  *
  * Run with UPDATE_GOLDEN=1 to rewrite the references after an intended change.
  */
-function expectGolden(name: string, fb: Framebuffer): void {
-  const png = encodePNG(fb);
+function expectGolden(name: string, fb: Framebuffer, maxDiffPixels = 0): void {
   const file = join(dir, `${name}.png`);
 
   if (!existsSync(file) || process.env.UPDATE_GOLDEN) {
-    writeFileSync(file, png);
+    writeFileSync(file, encodePNG(fb));
     return;
   }
 
-  const actual = createHash('sha256').update(png).digest('hex');
-  const expected = createHash('sha256').update(readFileSync(file)).digest('hex');
-  if (actual !== expected) writeFileSync(join(dir, `${name}.actual.png`), png);
-  expect(actual, `${name} differs; wrote ${name}.actual.png`).toBe(expected);
+  const diff = diffPixels(fb, decodePNG(readFileSync(file)));
+
+  if (diff.differing > 0) {
+    writeFileSync(join(dir, `${name}.actual.png`), encodePNG(fb));
+    const pct = ((diff.differing / diff.total) * 100).toFixed(3);
+    const where = diff.first ? ` first at (${diff.first.x}, ${diff.first.y})` : '';
+    // Surfaced even when within tolerance, so drift is visible in CI logs
+    // before it grows past the allowance.
+    console.warn(
+      `golden ${name}: ${diff.differing}/${diff.total} px differ (${pct}%)${where}` +
+        `, allowance ${maxDiffPixels}`
+    );
+  }
+
+  expect(
+    diff.differing,
+    `${name} differs by ${diff.differing} px (allowance ${maxDiffPixels}); ` +
+      `wrote ${name}.actual.png`
+  ).toBeLessThanOrEqual(maxDiffPixels);
 }
+
+/**
+ * Pies decide slice membership with `Math.atan2`, which ECMAScript allows to
+ * differ between implementations, so boundary pixels are not guaranteed
+ * identical across architectures. Sized to catch a real regression while
+ * tolerating an ulp: the radial dividers are the only pixels at risk.
+ */
+const PIE_ALLOWANCE = 120;
 
 describe('bar goldens', () => {
   it('single series', () => {
@@ -96,22 +128,22 @@ describe('line goldens', () => {
 
 describe('pie goldens', () => {
   it('flat pie', () => {
-    expectGolden('pie-flat', renderPie(200, 160, shares, { title: 'Spend', showPercent: true }));
+    expectGolden('pie-flat', renderPie(200, 160, shares, { title: 'Spend', showPercent: true }), PIE_ALLOWANCE);
   });
 
   it('donut', () => {
-    expectGolden('pie-donut', renderPie(200, 160, shares, { title: 'Spend', donut: 0.5 }));
+    expectGolden('pie-donut', renderPie(200, 160, shares, { title: 'Spend', donut: 0.5 }), PIE_ALLOWANCE);
   });
 
   it('extruded', () => {
-    expectGolden('pie-depth', renderPie(200, 160, shares, { title: 'Spend', depth: 5 }));
+    expectGolden('pie-depth', renderPie(200, 160, shares, { title: 'Spend', depth: 5 }), PIE_ALLOWANCE);
   });
 
   it('hovered slice', () => {
     const { result } = renderPieFull(200, 160, shares, { title: 'Spend' });
     const hit = result.hitTest(130, 70);
     expect(hit).not.toBeNull();
-    expectGolden('pie-hover', renderPie(200, 160, shares, { title: 'Spend' }, { hover: hit }));
+    expectGolden('pie-hover', renderPie(200, 160, shares, { title: 'Spend' }, { hover: hit }), PIE_ALLOWANCE);
   });
 });
 

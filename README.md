@@ -74,9 +74,10 @@ That buys three things beyond crisp edges:
 - **Dithering.** Shading is a Bayer or checker pattern, not an alpha value.
   Overlapping area fills use different dither densities, so they stay readable
   where alpha would just produce off-palette mud.
-- **Determinism.** Identical input produces byte-identical output on every
-  machine, which makes exact golden-image tests a fair assertion rather than a
-  flaky one.
+- **Determinism.** Identical input produces identical pixels, which makes exact
+  golden-image tests a fair assertion rather than a flaky one. Bar and line
+  charts are held to zero pixels of difference across platforms; see
+  [Testing](#testing) for the one narrow exception.
 - **No DOM in the hot path.** Tooltips, legends and panels are drawn pixels.
 
 ## Chart types
@@ -174,11 +175,25 @@ every render. It doubles as the print and no-JS fallback.
 
 ## Testing
 
-`npm test` runs 72 tests: unit coverage for the rasterizer, color packing, font
-metrics, scales, legend wrapping, label thinning and hit testing, plus
-golden-image comparisons that encode the framebuffer to PNG in Node — no
-browser, no dependencies — and compare hashes. Any stray antialiasing or
-off-by-one shows up immediately.
+`npm test` covers the rasterizer, color packing, font metrics, scales, legend
+wrapping, label thinning and hit testing, plus golden-image comparisons that
+render in Node — no browser, no dependencies — and compare decoded pixels. Any
+stray antialiasing or off-by-one shows up immediately, reported as a pixel
+count and the first differing coordinate rather than a hash mismatch.
+
+**On cross-platform exactness.** Everything the rasterizer does with `+ - * /`
+is exactly specified by IEEE 754 and gives identical results on every platform,
+so bar and line charts are held to *zero* differing pixels. `Math.atan2`,
+`Math.sin` and `Math.cos` are a different matter: ECMAScript deliberately
+leaves them implementation-approximated, and they do differ by an ulp between
+CPU architectures. The pie decides slice membership from an angle, so a handful
+of pixels sitting exactly on a slice boundary can fall either way. Those charts
+carry a small explicit allowance; everything else is exact.
+
+This is also why the axis code contains no `Math.log10` or `Math.pow`. Picking
+a tick step through an approximated logarithm means a difference too small to
+see can cross an integer boundary and select a different step entirely — the
+same chart, drawn with different gridlines, on a different machine.
 
 ```bash
 UPDATE_GOLDEN=1 npm test
