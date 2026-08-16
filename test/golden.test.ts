@@ -27,14 +27,17 @@ mkdirSync(dir, { recursive: true });
  * actually changed; a pixel count says whether one anti-aliased edge crept in
  * or the whole chart moved.
  *
- * `maxDiffPixels` exists for one narrow reason. Everything the rasterizer does
- * with the basic operators is exactly specified by IEEE 754 and therefore
- * identical on every platform, but ECMAScript explicitly leaves `Math.atan2`,
- * `Math.sin` and `Math.cos` implementation-approximated. The pie decides slice
- * membership from an angle, so on a different CPU architecture a handful of
- * pixels sitting exactly on a slice boundary can fall the other way. That is a
- * property of the language, not a bug to fix, so those charts carry a small
- * explicit allowance and everything else is held to exact equality.
+ * Every chart is held to zero differing pixels, on every platform. When these
+ * first ran on Linux x86-64 having been recorded on macOS ARM64, five images
+ * differed — the cause was `Math.log10` in the axis code, which ECMAScript
+ * leaves implementation-approximated, selecting a different tick step and
+ * moving every plot rectangle. With that removed the renders match exactly.
+ *
+ * `maxDiffPixels` remains available because `Math.atan2` is approximated too
+ * and the pie decides slice membership from an angle, so boundary pixels are
+ * a theoretical risk. It has not been observed, so nothing uses a non-zero
+ * allowance; raising one should be a deliberate, evidenced decision rather
+ * than a reflex when a golden fails.
  *
  * Run with UPDATE_GOLDEN=1 to rewrite the references after an intended change.
  */
@@ -67,13 +70,8 @@ function expectGolden(name: string, fb: Framebuffer, maxDiffPixels = 0): void {
   ).toBeLessThanOrEqual(maxDiffPixels);
 }
 
-/**
- * Pies decide slice membership with `Math.atan2`, which ECMAScript allows to
- * differ between implementations, so boundary pixels are not guaranteed
- * identical across architectures. Sized to catch a real regression while
- * tolerating an ulp: the radial dividers are the only pixels at risk.
- */
-const PIE_ALLOWANCE = 120;
+/** Pies match exactly on every platform tested; see the note above. */
+const PIE_ALLOWANCE = 0;
 
 describe('bar goldens', () => {
   it('single series', () => {

@@ -181,19 +181,20 @@ render in Node — no browser, no dependencies — and compare decoded pixels. A
 stray antialiasing or off-by-one shows up immediately, reported as a pixel
 count and the first differing coordinate rather than a hash mismatch.
 
-**On cross-platform exactness.** Everything the rasterizer does with `+ - * /`
-is exactly specified by IEEE 754 and gives identical results on every platform,
-so bar and line charts are held to *zero* differing pixels. `Math.atan2`,
-`Math.sin` and `Math.cos` are a different matter: ECMAScript deliberately
-leaves them implementation-approximated, and they do differ by an ulp between
-CPU architectures. The pie decides slice membership from an angle, so a handful
-of pixels sitting exactly on a slice boundary can fall either way. Those charts
-carry a small explicit allowance; everything else is exact.
+**On cross-platform exactness.** Every chart is held to *zero* differing pixels,
+on every platform, and that took one real fix to earn.
 
-This is also why the axis code contains no `Math.log10` or `Math.pow`. Picking
-a tick step through an approximated logarithm means a difference too small to
-see can cross an integer boundary and select a different step entirely — the
-same chart, drawn with different gridlines, on a different machine.
+Arithmetic is not the hard part: `+ - * /` are exactly specified by IEEE 754 and
+agree everywhere. But ECMAScript deliberately leaves `Math.log10`, `Math.pow`
+and `Math.atan2` implementation-approximated, and they do differ by an ulp
+between CPU architectures. The axis code used `Math.log10` to find a decade, and
+an ulp either side of an integer flips the `floor` — selecting a different tick
+step and drawing the same data with different gridlines depending on the
+machine. Goldens recorded on ARM64 failed on x86-64 because of it.
+
+So the axis finds its decade by exact multiplication and division instead, and
+the renders now match bit for bit. This matters beyond the tests: without it,
+the same chart on two machines is not necessarily the same chart.
 
 ```bash
 UPDATE_GOLDEN=1 npm test
