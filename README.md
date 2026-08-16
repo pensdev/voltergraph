@@ -27,14 +27,26 @@ new VolterGraph('#chart', {
 });
 ```
 
+## See it
+
+**Open [`docs/index.html`](docs/index.html) in a browser.** It is a complete
+self-contained page — the library, the demo and the styles are all inlined, so
+it needs no install, no server and no build step. Double-click it from a clone
+and the charts are there.
+
+Do *not* open `demo/index.html` directly. That one loads `main.ts`, and browsers
+cannot execute TypeScript — you get the page with five empty boxes. It exists so
+the dev server can hot-reload; use it with `npm run dev`.
+
 | Script | What it does |
 |:--|:--|
-| `npm run dev` | The demo page, live |
+| `npm install` | Needed once before any script below |
+| `npm run dev` | The demo page with live reload |
 | `npm test` | Unit and golden-image tests |
 | `npm run build` | ESM, CJS, IIFE and types into `dist/` |
 | `npm run preview` | Sample renders into `preview/` for eyeballing |
 | `npm run docs` | Regenerates the README images |
-| `npm run artifact` | Bundles the demo into one self-contained HTML file |
+| `npm run artifact` | Rebuilds `docs/index.html`, the self-contained page |
 
 ## Why it isn't built on Canvas2D
 

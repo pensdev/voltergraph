@@ -1,11 +1,17 @@
 /**
- * Bundles the demo page into a single self-contained HTML file.
+ * Bundles the demo page into self-contained HTML with no build step needed to
+ * view it.
  *
- * The Artifact host blocks every external request, so the library, the demo
- * script and the styles all have to be inlined. The page markup stays in
- * demo/index.html as the single source of truth — this script rewrites the
- * module <script> tag into an inline IIFE and strips the document shell the
- * host supplies itself.
+ * Two outputs from one source, because they have different hosts:
+ *
+ *   docs/index.html      A complete document. Double-click it from a clone, or
+ *                        serve it as a GitHub Pages site. Committed.
+ *   preview/artifact.html A fragment, for hosts that supply their own document
+ *                        shell. Not committed.
+ *
+ * demo/index.html stays the single source of truth. It loads main.ts directly
+ * so the dev server can hot-reload TypeScript; this script rewrites that tag
+ * into an inline bundle so the page works from the filesystem.
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -13,8 +19,6 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const outDir = join(root, 'preview');
-mkdirSync(outDir, { recursive: true });
 
 const bundle = execFileSync(
   'npx',
@@ -32,23 +36,6 @@ const bundle = execFileSync(
   { cwd: root, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }
 );
 
-const html = readFileSync(join(root, 'demo/index.html'), 'utf8');
-
-const title = html.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? 'Volter Graph';
-const style = html.match(/<style>[\s\S]*?<\/style>/)?.[0] ?? '';
-const body = html.match(/<body>([\s\S]*?)<\/body>/)?.[1] ?? '';
-
-if (!style || !body) throw new Error('build-artifact: could not extract style/body');
-
-/**
- * The fragment carries no <meta charset> — the host supplies the document
- * head — so every non-ASCII character becomes a numeric entity. Em dashes
- * silently turning into "â€"" is the failure this prevents.
- */
-function toEntities(text: string): string {
-  return text.replace(/[^\x00-\x7F]/g, (ch) => `&#x${ch.codePointAt(0)!.toString(16)};`);
-}
-
 const script = bundle.trim();
 const nonAscii = script.match(/[^\x00-\x7F]/g);
 if (nonAscii) {
@@ -58,16 +45,53 @@ if (nonAscii) {
   );
 }
 
-const page = [
-  `<title>${toEntities(title)}</title>`,
-  toEntities(style),
-  toEntities(body.replace(/<script[\s\S]*?<\/script>/g, '').trimEnd()),
-  `<script>${script}</script>`,
-  '',
-].join('\n');
+const html = readFileSync(join(root, 'demo/index.html'), 'utf8');
+const title = html.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? 'Volter Graph';
+const style = html.match(/<style>[\s\S]*?<\/style>/)?.[0] ?? '';
+const rawBody = html.match(/<body>([\s\S]*?)<\/body>/)?.[1] ?? '';
 
-const out = join(outDir, 'artifact.html');
-writeFileSync(out, page);
+if (!style || !rawBody) throw new Error('build-artifact: could not extract style/body');
 
-const kb = (Buffer.byteLength(page) / 1024).toFixed(1);
-console.log(`preview/artifact.html  ${kb} KB  (script ${(bundle.length / 1024).toFixed(1)} KB)`);
+/**
+ * The fragment carries no <meta charset> — its host supplies the document head
+ * — so every non-ASCII character becomes a numeric entity. Em dashes silently
+ * turning into "â€"" is the failure this prevents.
+ */
+function toEntities(text: string): string {
+  return text.replace(/[^\x00-\x7F]/g, (ch) => `&#x${ch.codePointAt(0)!.toString(16)};`);
+}
+
+const body = toEntities(rawBody.replace(/<script[\s\S]*?<\/script>/g, '').trimEnd());
+const styleText = toEntities(style);
+const titleText = toEntities(title);
+
+function emit(path: string, contents: string): void {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, contents);
+  console.log(`${path.replace(root + '/', '')}  ${(Buffer.byteLength(contents) / 1024).toFixed(1)} KB`);
+}
+
+emit(
+  join(root, 'docs/index.html'),
+  [
+    '<!doctype html>',
+    '<html lang="en">',
+    '<head>',
+    '<meta charset="utf-8" />',
+    '<meta name="viewport" content="width=device-width, initial-scale=1" />',
+    `<title>${titleText}</title>`,
+    styleText,
+    '</head>',
+    '<body>',
+    body,
+    `<script>${script}</script>`,
+    '</body>',
+    '</html>',
+    '',
+  ].join('\n')
+);
+
+emit(
+  join(root, 'preview/artifact.html'),
+  [`<title>${titleText}</title>`, styleText, body, `<script>${script}</script>`, ''].join('\n')
+);

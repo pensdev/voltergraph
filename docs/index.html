@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Volter Graph</title>
+<style>
+      /* ---------------------------------------------------------- tokens */
+      :root {
+        /* Light: the warm tan of a hotel room floor, parchment panels. */
+        --ground: #b3a687;
+        --ground-grid: rgba(43, 43, 58, 0.07);
+        --panel: #ede6d5;
+        --panel-sunk: #e2d9c4;
+        --edge-light: #fffdf6;
+        --edge-dark: #b8ad93;
+        --border: #2b2b3a;
+        --ink: #2b2b3a;
+        --ink-soft: #6f6a5e;
+        --bar: #2b3242;
+        --bar-ink: #f2e9d6;
+        --accent: #a8710a;
+        --accent-bright: #e0a428;
+        /* Gold is never legible as ink on a tan ground, so emphasis is a
+           gold ground with its own foreground token instead. */
+        --on-accent: #fdf8ea;
+        --drop: rgba(43, 43, 58, 0.45);
+        --up: #4d7a1f;
+        --down: #a8332a;
+
+        --step: 8px;
+        --w-page: 1000px;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          --ground: #171b25;
+          --ground-grid: rgba(255, 255, 255, 0.045);
+          --panel: #262a38;
+          --panel-sunk: #1e222e;
+          --edge-light: #454c63;
+          --edge-dark: #10131b;
+          --border: #0c0e14;
+          --ink: #eae6dc;
+          --ink-soft: #9aa0b4;
+          --bar: #323749;
+          --bar-ink: #f2c14e;
+          --accent: #f2c14e;
+          --accent-bright: #f2c14e;
+          --on-accent: #171b25;
+          --drop: rgba(0, 0, 0, 0.6);
+          --up: #8dc44f;
+          --down: #e0625a;
+        }
+      }
+
+      :root[data-theme='dark'] {
+        --ground: #171b25;
+        --ground-grid: rgba(255, 255, 255, 0.045);
+        --panel: #262a38;
+        --panel-sunk: #1e222e;
+        --edge-light: #454c63;
+        --edge-dark: #10131b;
+        --border: #0c0e14;
+        --ink: #eae6dc;
+        --ink-soft: #9aa0b4;
+        --bar: #323749;
+        --bar-ink: #f2c14e;
+        --accent: #f2c14e;
+        --accent-bright: #f2c14e;
+        --on-accent: #171b25;
+        --drop: rgba(0, 0, 0, 0.6);
+        --up: #8dc44f;
+        --down: #e0625a;
+      }
+
+      /* ----------------------------------------------------------- base */
+      *,
+      *::before,
+      *::after { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        padding: clamp(20px, 4vw, 48px) clamp(12px, 3vw, 32px) 72px;
+        background-color: var(--ground);
+        /* A 4px checkerboard on the ground, echoing the library's dithering. */
+        background-image:
+          linear-gradient(45deg, var(--ground-grid) 25%, transparent 25%, transparent 75%, var(--ground-grid) 75%),
+          linear-gradient(45deg, var(--ground-grid) 25%, transparent 25%, transparent 75%, var(--ground-grid) 75%);
+        background-size: 4px 4px;
+        background-position: 0 0, 2px 2px;
+        color: var(--ink);
+        font: 13px/1.6 ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+        font-variant-numeric: tabular-nums;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .page {
+        max-width: var(--w-page);
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: calc(var(--step) * 3);
+      }
+
+      /* --------------------------------------------------------- panels */
+      /* Every surface is the same beveled box: hard border, light inner edge
+         top-left, dark inner edge bottom-right, hard offset shadow. */
+      .panel {
+        background: var(--panel);
+        border: 2px solid var(--border);
+        box-shadow:
+          inset 1px 1px 0 var(--edge-light),
+          inset -1px -1px 0 var(--edge-dark),
+          4px 4px 0 var(--drop);
+        min-width: 0;
+      }
+
+      .panel__bar {
+        background: var(--bar);
+        color: var(--bar-ink);
+        border-bottom: 2px solid var(--border);
+        padding: 6px 10px;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .panel__title {
+        margin: 0;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .panel__note {
+        font-size: 11px;
+        color: var(--bar-ink);
+        opacity: 0.7;
+        letter-spacing: 0.02em;
+      }
+
+      .panel__body { padding: 12px; min-width: 0; }
+      .panel__body--flush { padding: 8px; }
+
+      /* --------------------------------------------------------- header */
+      .masthead {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: calc(var(--step) * 2);
+      }
+
+      .masthead__mark { display: flex; flex-direction: column; gap: 10px; }
+      /* The wordmark is drawn with the library's own bitmap font. */
+      .wordmark canvas { image-rendering: pixelated; }
+
+      .masthead__tag {
+        margin: 0;
+        max-width: 62ch;
+        color: var(--ink);
+        opacity: 0.85;
+      }
+      .masthead__tag strong {
+        background: var(--accent);
+        color: var(--on-accent);
+        font-weight: 700;
+        padding: 1px 5px;
+        box-decoration-break: clone;
+        -webkit-box-decoration-break: clone;
+      }
+
+      .chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+      .chip {
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 3px 8px;
+        background: var(--panel);
+        color: var(--ink-soft);
+        border: 2px solid var(--border);
+        box-shadow: 2px 2px 0 var(--drop);
+      }
+
+      /* ---------------------------------------------------------- stats */
+      .stats {
+        display: grid;
+        gap: calc(var(--step) * 1.5);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      @media (min-width: 720px) {
+        .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      }
+
+      .stat { padding: 10px 12px 12px; }
+      .stat__label {
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+      .stat__value {
+        font-size: 24px;
+        font-weight: 700;
+        line-height: 1.15;
+        margin-top: 4px;
+        color: var(--ink);
+      }
+      .stat__unit { font-size: 12px; color: var(--ink-soft); font-weight: 400; }
+      .stat__delta {
+        margin-top: 6px;
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 2px 6px;
+        border: 2px solid var(--border);
+        color: var(--panel);
+      }
+      .stat__delta--up { background: var(--up); }
+      .stat__delta--down { background: var(--down); }
+
+      /* --------------------------------------------------------- charts */
+      .chart { width: 100%; min-width: 0; }
+      .chart--hero { height: clamp(240px, 38vw, 360px); }
+      .chart--half { height: 260px; }
+
+      .split {
+        display: grid;
+        gap: calc(var(--step) * 3);
+        grid-template-columns: minmax(0, 1fr);
+      }
+      @media (min-width: 760px) {
+        .split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+      }
+
+      .caption {
+        margin: 10px 0 0;
+        color: var(--ink-soft);
+        font-size: 12px;
+        max-width: 68ch;
+      }
+      .caption strong { color: var(--ink); font-weight: 700; }
+
+      /* -------------------------------------------------------- controls */
+      .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+
+      button {
+        font: inherit;
+        font-size: 12px;
+        padding: 6px 12px;
+        cursor: pointer;
+        color: var(--ink);
+        background: var(--panel-sunk);
+        border: 2px solid var(--border);
+        box-shadow:
+          inset 1px 1px 0 var(--edge-light),
+          inset -1px -1px 0 var(--edge-dark),
+          3px 3px 0 var(--drop);
+      }
+      button:hover { background: var(--panel); }
+      button:active {
+        box-shadow:
+          inset -1px -1px 0 var(--edge-light),
+          inset 1px 1px 0 var(--edge-dark);
+        transform: translate(3px, 3px);
+      }
+      button:focus-visible { outline: 3px solid var(--accent-bright); outline-offset: 2px; }
+      @media (prefers-reduced-motion: reduce) {
+        button:active { transform: none; }
+      }
+
+      /* --------------------------------------------------------- footer */
+      .colophon {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 18px;
+        color: var(--ink);
+        opacity: 0.75;
+        font-size: 12px;
+      }
+      .colophon code {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        padding: 1px 5px;
+      }
+    </style>
+</head>
+<body>
+
+    <div class="page">
+      <header class="masthead">
+        <div class="masthead__mark">
+          <div class="wordmark" id="wordmark"></div>
+          <p class="masthead__tag">
+            Pixel-art charts for the web. Every pixel is placed by hand into a software
+            framebuffer, so nothing is ever antialiased &#x2014; <strong>no blur, no half-pixels,
+            no smoothing</strong>. Tracking the rare furni market, because that is what
+            these charts were built to look like.
+          </p>
+        </div>
+        <div class="chip-row">
+          <span class="chip">Bar</span>
+          <span class="chip">Line</span>
+          <span class="chip">Pie</span>
+          <span class="chip">11.5 KB</span>
+          <span class="chip">No deps</span>
+        </div>
+      </header>
+
+      <section class="stats" aria-label="Market summary">
+        <div class="panel stat">
+          <div class="stat__label">Portfolio value</div>
+          <div class="stat__value">1,842 <span class="stat__unit">cr</span></div>
+          <span class="stat__delta stat__delta--up">+12.4% season</span>
+        </div>
+        <div class="panel stat">
+          <div class="stat__label">Top mover</div>
+          <div class="stat__value">Throne</div>
+          <span class="stat__delta stat__delta--up">+135 cr</span>
+        </div>
+        <div class="panel stat">
+          <div class="stat__label">Biggest drop</div>
+          <div class="stat__value">Dragon</div>
+          <span class="stat__delta stat__delta--down">&#x2212;70 cr</span>
+        </div>
+        <div class="panel stat">
+          <div class="stat__label">Trades cleared</div>
+          <div class="stat__value">5,110</div>
+          <span class="stat__delta stat__delta--up">+8.1% week</span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel__bar">
+          <h2 class="panel__title">Rare values over time</h2>
+          <span class="panel__note">Credits &#xb7; 12 months &#xb7; hover or tap for a column</span>
+        </div>
+        <div class="panel__body panel__body--flush">
+          <div class="chart chart--hero" id="rares"></div>
+        </div>
+        <div class="panel__body" style="padding-top: 0">
+          <p class="caption">
+            The <strong>Dragon Lamp</strong> collapse in June is what this chart exists to
+            show: a rare re-dropped in the catalogue floods the market and loses two thirds
+            of its trade value, then climbs back as stock is hoarded again. Every line is
+            1px Bresenham, snapped to whole pixels &#x2014; turn on the fills and each series
+            dithers at a sparser density than the last, which is how they stay apart where
+            alpha would turn to mud.
+          </p>
+          <div class="controls" style="margin-top: 12px">
+            <button id="reshuffle" type="button">Reshuffle market</button>
+            <button id="toggle-area" type="button">Show fills</button>
+            <button id="toggle-points" type="button">Toggle markers</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="split">
+        <section class="panel">
+          <div class="panel__bar">
+            <h2 class="panel__title">Where the credits go</h2>
+            <span class="panel__note">Share of spend</span>
+          </div>
+          <div class="panel__body panel__body--flush">
+            <div class="chart chart--half" id="spend"></div>
+          </div>
+          <div class="panel__body" style="padding-top: 0">
+            <p class="caption">
+              An arc is a curve, and every vector renderer resolves that with antialiasing.
+              This pie tests each pixel's angle into a slice mask, then reads the outlines
+              off the <strong>boundaries in that mask</strong> &#x2014; circumference, dividers and
+              hole in one pass, all exactly 1px.
+            </p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel__bar">
+            <h2 class="panel__title">Trades by rare</h2>
+            <span class="panel__note">This season</span>
+          </div>
+          <div class="panel__body panel__body--flush">
+            <div class="chart chart--half" id="volume"></div>
+          </div>
+          <div class="panel__body" style="padding-top: 0">
+            <p class="caption">
+              The <strong>HC Sofa</strong> clears more trades than the Throne despite being
+              worth a third as much &#x2014; cheap rares are the small change of the trading
+              lounge.
+            </p>
+          </div>
+        </section>
+      </div>
+
+      <div class="split">
+        <section class="panel">
+          <div class="panel__bar">
+            <h2 class="panel__title">Week-on-week change</h2>
+            <span class="panel__note">Credits, &#xb1; on the baseline</span>
+          </div>
+          <div class="panel__body panel__body--flush">
+            <div class="chart chart--half" id="change"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel__bar">
+            <h2 class="panel__title">Habbos in the hotel</h2>
+            <span class="panel__note">By hour &#xb7; stepped</span>
+          </div>
+          <div class="panel__body panel__body--flush">
+            <div class="chart chart--half" id="population"></div>
+          </div>
+        </section>
+      </div>
+
+      <section class="panel">
+        <div class="panel__bar">
+          <h2 class="panel__title">Colophon</h2>
+          <span class="panel__note">MIT</span>
+        </div>
+        <div class="panel__body">
+          <div class="colophon">
+            <span>Wordmark drawn with the bundled <code>volter5</code> bitmap face.</span>
+            <span>Charts render to a <code>Uint32Array</code> framebuffer.</span>
+            <span>Integer zoom only &#x2014; never fractional.</span>
+            <span>Every chart also emits a hidden data table.</span>
+          </div>
+        </div>
+      </section>
+    </div>
+<script>"use strict";(()=>{function Ht(e,t){if(typeof e=="number")return{width:e||t,yOffset:0,rows:new Uint32Array(0)};let[n,...r]=e,o=r.length?r[0].length:0,i=new Uint32Array(r.length);return r.forEach((s,a)=>{if(s.length!==o)throw new Error(`volter-graph: glyph rows must be equal width (got "${s}")`);let h=0;for(let l=0;l<o;l++)s.charCodeAt(l)===35&&(h|=1<<o-1-l);i[a]=h>>>0}),{width:o,yOffset:n,rows:i}}function J(e){let t=new Map;for(let[n,r]of Object.entries(e.glyphs))t.set(n,Ht(r,e.spaceWidth));return{name:e.name,height:e.height,baseline:e.baseline,tracking:e.tracking,glyphs:t,fallback:Ht(e.fallback,e.spaceWidth)}}function bt(e,t){return e.glyphs.get(t)??e.fallback}function O(e,t){let n=0;for(let r of t)n+=bt(e,r).width+e.tracking;return Math.max(0,n-e.tracking)}function L(e,t,n,r,o,i,s={}){let a=t.tracking+(s.letterSpacing??0),h=be(t,o,a),l=Math.round(n);s.align==="center"?l-=h>>1:s.align==="right"&&(l-=h);let c=Math.round(r);if(s.valign==="middle"?c-=t.height>>1:s.valign==="bottom"?c-=t.height:s.valign==="baseline"&&(c-=t.baseline),s.shadow!==void 0){let[u,m]=s.shadowOffset??[0,1];At(e,t,l+u,c+m,o,s.shadow,a)}At(e,t,l,c,o,i,a)}function be(e,t,n){let r=0;for(let o of t)r+=bt(e,o).width+n;return Math.max(0,r-n)}function At(e,t,n,r,o,i,s){let a=n;for(let h of o){let l=bt(t,h);for(let c=0;c<l.rows.length;c++){let u=l.rows[c];if(u===0)continue;let m=r+l.yOffset+c;for(let d=0;d<l.width;d++)u>>>l.width-1-d&1&&e.set(a+d,m,i)}a+=l.width+s}}var K={name:"volter5",height:7,baseline:5,tracking:1,spaceWidth:2,fallback:[0,"###","#.#","#.#","#.#","###"],glyphs:{" ":2,A:[0,"###","#.#","###","#.#","#.#"],B:[0,"##.","#.#","##.","#.#","##."],C:[0,"###","#..","#..","#..","###"],D:[0,"##.","#.#","#.#","#.#","##."],E:[0,"###","#..","###","#..","###"],F:[0,"###","#..","###","#..","#.."],G:[0,"###","#..","#.#","#.#","###"],H:[0,"#.#","#.#","###","#.#","#.#"],I:[0,"#","#","#","#","#"],J:[0,"..#","..#","..#","#.#","###"],K:[0,"#.#","#.#","##.","#.#","#.#"],L:[0,"#..","#..","#..","#..","###"],M:[0,"#...#","##.##","#.#.#","#...#","#...#"],N:[0,"#..#","##.#","#.##","#..#","#..#"],O:[0,"###","#.#","#.#","#.#","###"],P:[0,"###","#.#","###","#..","#.."],Q:[0,"###","#.#","#.#","###","..#"],R:[0,"##.","#.#","##.","#.#","#.#"],S:[0,"###","#..","###","..#","###"],T:[0,"###",".#.",".#.",".#.",".#."],U:[0,"#.#","#.#","#.#","#.#","###"],V:[0,"#.#","#.#","#.#","#.#",".#."],W:[0,"#...#","#...#","#.#.#","##.##","#...#"],X:[0,"#.#","#.#",".#.","#.#","#.#"],Y:[0,"#.#","#.#",".#.",".#.",".#."],Z:[0,"###","..#",".#.","#..","###"],a:[1,"##.",".##","#.#",".##"],b:[0,"#..","##.","#.#","#.#","##."],c:[1,".##","#..","#..",".##"],d:[0,"..#",".##","#.#","#.#",".##"],e:[1,".##","#.#","##.",".##"],f:[0,".##",".#.","###",".#.",".#."],g:[1,".##","#.#","#.#",".##","..#","##."],h:[0,"#..","##.","#.#","#.#","#.#"],i:[0,"#",".","#","#","#"],j:[0,".#","..",".#",".#",".#",".#","##"],k:[0,"#..","#..","#.#","##.","#.#"],l:[0,"#","#","#","#","#"],m:[1,"#####","#.#.#","#.#.#","#.#.#"],n:[1,"##.","#.#","#.#","#.#"],o:[1,".#.","#.#","#.#",".#."],p:[1,"##.","#.#","#.#","##.","#.."],q:[1,".##","#.#","#.#",".##","..#"],r:[1,"#.#","##.","#..","#.."],s:[1,".##","#..","..#","##."],t:[0,".#.","###",".#.",".#.",".##"],u:[1,"#.#","#.#","#.#",".##"],v:[1,"#.#","#.#","#.#",".#."],w:[1,"#.#.#","#.#.#","#.#.#",".#.#."],x:[1,"#.#",".#.",".#.","#.#"],y:[1,"#.#","#.#","#.#",".##","..#","##."],z:[1,"###","..#",".#.","###"],0:[0,"###","#.#","#.#","#.#","###"],1:[0,".#.","##.",".#.",".#.","###"],2:[0,"###","..#","###","#..","###"],3:[0,"###","..#","###","..#","###"],4:[0,"#.#","#.#","###","..#","..#"],5:[0,"###","#..","###","..#","###"],6:[0,"###","#..","###","#.#","###"],7:[0,"###","..#","..#","..#","..#"],8:[0,"###","#.#","###","#.#","###"],9:[0,"###","#.#","###","..#","###"],".":[4,"#"],",":[4,"#","#"],":":[1,"#",".",".","#"],";":[1,"#",".",".","#","#"],"!":[0,"#","#","#",".","#"],"?":[0,"###","..#",".#.","...",".#."],"'":[0,"#","#"],'"':[0,"#.#","#.#"],"-":[2,"###"],"+":[1,".#.","###",".#."],"=":[1,"###","...","###"],"*":[0,"#.#",".#.","#.#"],"/":[0,"..#","..#",".#.","#..","#.."],"\\":[0,"#..","#..",".#.","..#","..#"],"(":[0,".#","#.","#.","#.",".#"],")":[0,"#.",".#",".#",".#","#."],"[":[0,"##","#.","#.","#.","##"],"]":[0,"##",".#",".#",".#","##"],"<":[1,"..#",".#.","..#"],">":[1,"#..",".#.","#.."],"%":[0,"#...#","...#.","..#..",".#...","#...#"],$:[0,".#.","###","##.","###",".#."],"#":[0,"#.#","###","#.#","###","#.#"],_:[5,"###"],"|":[0,"#","#","#","#","#"],"^":[0,".#.","#.#"],"~":[2,".##","##."],"\xB0":[0,"##","##"],"\xD7":[1,"#.#",".#.","#.#"],"\xB7":[2,"#"]}};var gt=new Uint8Array(new Uint32Array([287454020]).buffer)[0]===68;function U(e,t,n,r=255){return e&=255,t&=255,n&=255,r&=255,gt?(r<<24|n<<16|t<<8|e)>>>0:(e<<24|t<<16|n<<8|r)>>>0}function G(e){return gt?[e&255,e>>>8&255,e>>>16&255,e>>>24&255]:[e>>>24&255,e>>>16&255,e>>>8&255,e&255]}function xt(e){return gt?e>>>24&255:e&255}function v(e){let t=e.trim();if(t.charCodeAt(0)===35&&(t=t.slice(1)),(t.length===3||t.length===4)&&(t=t.split("").map(r=>r+r).join("")),t.length!==6&&t.length!==8)throw new Error(`volter-graph: bad hex color "${e}"`);let n=parseInt(t,16);return t.length===6?U(n>>>16&255,n>>>8&255,n&255,255):U(n>>>24&255,n>>>16&255,n>>>8&255,n&255)}function rt(e){return typeof e=="string"?v(e):e}function F(e,t=.25){let[n,r,o,i]=G(e),s=1-t;return U(Math.round(n*s),Math.round(r*s),Math.round(o*s),i)}function D(e,t=.25){let[n,r,o,i]=G(e);return U(Math.round(n+(255-n)*t),Math.round(r+(255-r)*t),Math.round(o+(255-o)*t),i)}function _(e){let[t,n,r]=G(e);return(.2126*t+.7152*n+.0722*r)/255}var j=class{constructor(t,n){this.clipStack=[];this.width=Math.max(1,t|0),this.height=Math.max(1,n|0),this.data=new Uint32Array(this.width*this.height),this.clipRect={x0:0,y0:0,x1:this.width,y1:this.height}}clear(t=0){this.data.fill(t>>>0)}pushClip(t,n,r,o){let i=this.clipRect;this.clipStack.push(i),this.clipRect={x0:Math.max(i.x0,t|0),y0:Math.max(i.y0,n|0),x1:Math.min(i.x1,(t|0)+(r|0)),y1:Math.min(i.y1,(n|0)+(o|0))}}popClip(){let t=this.clipStack.pop();t&&(this.clipRect=t)}get clip(){return this.clipRect}set(t,n,r){let o=this.clipRect;if(t<o.x0||n<o.y0||t>=o.x1||n>=o.y1)return;let i=xt(r);if(i===0)return;let s=n*this.width+t;if(i===255){this.data[s]=r>>>0;return}this.data[s]=It(this.data[s],r,i)}setUnsafe(t,n,r){this.data[n*this.width+t]=r>>>0}get(t,n){return t<0||n<0||t>=this.width||n>=this.height?0:this.data[n*this.width+t]}fill(t,n,r,o,i){let s=this.clipRect,a=Math.max(s.x0,t|0),h=Math.max(s.y0,n|0),l=Math.min(s.x1,(t|0)+(r|0)),c=Math.min(s.y1,(n|0)+(o|0));if(l<=a||c<=h)return;let u=xt(i);if(u!==0){if(u===255){let m=i>>>0;for(let d=h;d<c;d++)this.data.fill(m,d*this.width+a,d*this.width+l);return}for(let m=h;m<c;m++){let d=m*this.width;for(let p=a;p<l;p++)this.data[d+p]=It(this.data[d+p],i,u)}}}bytes(){return new Uint8ClampedArray(this.data.buffer)}};function It(e,t,n){let[r,o,i]=G(t),[s,a,h,l]=G(e),c=n/255;return U(Math.round(s+(r-s)*c),Math.round(a+(o-a)*c),Math.round(h+(i-h)*c),Math.max(l,n))}var ge=300,xe=4,it=class{constructor(t,n={}){this.imageData=null;this.currentZoom=2;this.container=t,this.options=n,this.canvas=document.createElement("canvas"),this.canvas.style.display="block",this.canvas.style.setProperty("image-rendering","crisp-edges"),this.canvas.style.setProperty("image-rendering","pixelated"),this.canvas.style.touchAction="pan-y",t.appendChild(this.canvas);let r=this.canvas.getContext("2d",{alpha:!1});if(!r)throw new Error("volter-graph: could not acquire a 2D context");this.ctx=r,this.staging=document.createElement("canvas");let o=this.staging.getContext("2d",{alpha:!1,willReadFrequently:!0});if(!o)throw new Error("volter-graph: could not acquire a staging 2D context");this.stagingCtx=o,this.fb=new j(1,1),this.resize()}get zoom(){return this.currentZoom}setZoom(t){this.options.zoom=t,this.resize()}resize(){let t=typeof window>"u"?1:window.devicePixelRatio||1,n=Math.max(1,Math.floor(t)),{w:r,h:o}=this.measureContainer(),i=this.resolveZoom(r),s,a;return this.options.logicalWidth&&this.options.logicalHeight?(s=this.options.logicalWidth,a=this.options.logicalHeight):(s=Math.max(48,Math.floor(r/i)),a=o>0?Math.floor(o/i):Math.round(s/this.resolveAspect(s)),a=Math.max(this.options.minHeight??60,a)),s===this.fb.width&&a===this.fb.height&&i===this.currentZoom&&this.imageData?!1:(this.currentZoom=i,this.fb=new j(s,a),this.staging.width=s,this.staging.height=a,this.imageData=this.stagingCtx.createImageData(s,a),this.canvas.width=s*i*n,this.canvas.height=a*i*n,this.canvas.style.width=`${s*i}px`,this.canvas.style.height=`${a*i}px`,!0)}resolveZoom(t){let n=this.options.zoom??"auto";return typeof n=="number"?Math.max(1,Math.floor(n)):Math.max(2,Math.min(xe,Math.floor(t/ge)||2))}resolveAspect(t){let n=this.options.aspectRatio??"auto";return typeof n=="number"?n>0?n:16/9:t<170?5/4:t<260?4/3:16/9}measureContainer(){let t=this.canvas.style.width,n=this.canvas.style.height;this.canvas.style.width="0px",this.canvas.style.height="0px";let r=this.container.getBoundingClientRect(),o=getComputedStyle(this.container),i=r.width-ot(o.paddingLeft)-ot(o.paddingRight),s=r.height-ot(o.paddingTop)-ot(o.paddingBottom);return this.canvas.style.width=t,this.canvas.style.height=n,{w:Math.max(1,Math.floor(i)||320),h:Math.max(0,Math.floor(s))}}present(){this.imageData&&(this.imageData.data.set(this.fb.bytes()),this.stagingCtx.putImageData(this.imageData,0,0),this.ctx.imageSmoothingEnabled=!1,this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height),this.ctx.drawImage(this.staging,0,0,this.canvas.width,this.canvas.height))}toLogical(t,n){let r=this.canvas.getBoundingClientRect(),o=this.fb.width/(r.width||1),i=this.fb.height/(r.height||1);return{x:Math.floor((t-r.left)*o),y:Math.floor((n-r.top)*i)}}destroy(){this.canvas.remove(),this.imageData=null}};function ot(e){let t=parseFloat(e);return Number.isFinite(t)?t:0}var V={name:"origins",bg:v("#ede6d5"),plot:v("#f6f1e3"),panel:v("#e2d9c4"),ink:v("#2b2b3a"),inkSoft:v("#6f6a5e"),grid:v("#cdc3ab"),light:v("#fffdf6"),dark:v("#b8ad93"),shadow:v("#9a9081"),series:[v("#e0a428"),v("#c4483f"),v("#4a7fbd"),v("#78a83f"),v("#8a5fb0"),v("#3fa39b"),v("#d9762c"),v("#cc6f9e")]},W={name:"midnight",bg:v("#1d1f2b"),plot:v("#262a38"),panel:v("#323749"),ink:v("#eae6dc"),inkSoft:v("#9aa0b4"),grid:v("#3a4053"),light:v("#4b5268"),dark:v("#161822"),shadow:v("#101219"),series:[v("#f2c14e"),v("#e0625a"),v("#5b9bd8"),v("#8dc44f"),v("#a37ad0"),v("#4fc0b6"),v("#f08a3c"),v("#e28ab8")]},Bt={origins:V,midnight:W};function vt(e){if(!e)return V;if(typeof e=="string"){let t=Bt[e];if(!t)throw new Error(`volter-graph: unknown theme "${e}"`);return t}return e}function at(e,t){return e.series[t%e.series.length]}var ve=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];function jt(e,t,n){return ve[(t&3)*4+(e&3)]<n}function zt(e,t,n,r,o,i,s,a=0){let h=e.clip,l=Math.max(h.x0,t|0),c=Math.max(h.y0,n|0),u=Math.min(h.x1,(t|0)+(r|0)),m=Math.min(h.y1,(n|0)+(o|0));for(let d=c;d<m;d++)for(let p=l;p<u;p++)(p+d+a&1)===0?e.set(p,d,i):s!==null&&e.set(p,d,s)}function A(e,t,n,r,o,i){if(!(r<=0||o<=0)){if(o===1)return void e.fill(t,n,r,1,i);if(r===1)return void e.fill(t,n,1,o,i);e.fill(t,n,r,1,i),e.fill(t,n+o-1,r,1,i),e.fill(t,n+1,1,o-2,i),e.fill(t+r-1,n+1,1,o-2,i)}}function ye(e,t,n,r,o,i,s=4294967295){t|=0,n|=0,r|=0,o|=0;let a=Math.abs(r-t),h=-Math.abs(o-n),l=t<r?1:-1,c=n<o?1:-1,u=a+h,m=0;for(;s>>>(m&31)&1&&e.set(t,n,i),m++,!(t===r&&n===o);){let d=2*u;d>=h&&(u+=h,t+=l),d<=a&&(u+=a,n+=c)}}function Yt(e,t,n,r,o,i=2){for(let s=0;s<r;s++)(t+s)%i===0&&e.set(t+s,n,o)}function $t(e,t,n,r,o,i=2){for(let s=0;s<r;s++)(n+s)%i===0&&e.set(t,n+s,o)}function Zt(e,t,n,r){let o=t.length;if(o<3)return;let i=1/0,s=-1/0;for(let[,u]of t)u<i&&(i=u),u>s&&(s=u);let a=e.clip,h=Math.max(a.y0,Math.floor(i)),l=Math.min(a.y1-1,Math.ceil(s)),c=[];for(let u=h;u<=l;u++){let m=u+.5;c.length=0;for(let d=0,p=o-1;d<o;p=d++){let[g,f]=t[d],[x,b]=t[p];(f<=m?b>m:b<=m)&&c.push(g+(m-f)/(b-f)*(x-g))}c.sort((d,p)=>d-p);for(let d=0;d+1<c.length;d+=2){let p=Math.round(c[d]),g=Math.round(c[d+1]);if(!(g<=p))if(r===void 0)e.fill(p,u,g-p,1,n);else for(let f=p;f<g;f++)jt(f,u,r)&&e.set(f,u,n)}}}function st(e,t,n,r=4294967295){for(let o=1;o<t.length;o++)ye(e,t[o-1][0],t[o-1][1],t[o][0],t[o][1],n,r)}function Ut(e,t,n,r){for(let[o,i]of[[0,-1],[0,1],[-1,0],[1,0]])st(e,t.map(([s,a])=>[s+o,a+i]),r);st(e,t,n)}function _t(e,t,n={}){let r=Gt(n.paddingInner??.25),o=Gt(n.paddingOuter??.1),i=n.origin??0,s=[];if(e<=0||t<=0)return{bands:s,at:()=>-1};let a=t/(e+2*o),h=Math.round(a*o),l=Math.max(e,t-2*h),c=i+h;for(let u=0;u<e;u++){let m=c+Math.round(u*l/e),p=c+Math.round((u+1)*l/e)-m,g=Math.min(p-1,Math.round(p*r)),f=g>>1,x=Math.max(1,p-g);s.push({index:u,start:m+f,size:x,center:m+(p>>1)})}return{bands:s,at(u){for(let m of s)if(u>=m.start&&u<m.start+m.size)return m.index;return-1}}}function Vt(e,t,n=1){if(t<=1)return[e];let r=[],o=Math.min(e.size-t,n*(t-1)),i=Math.max(t,e.size-o),s=o>0?Math.round(o/(t-1)):0;for(let a=0;a<t;a++){let h=Math.round(a*i/t),l=Math.round((a+1)*i/t),c=e.start+h+a*s,u=Math.max(1,l-h);r.push({index:a,start:c,size:u,center:c+(u>>1)})}return r}function Gt(e){return e<0?0:e>1?1:e}function Ct(e,t,n,r,o,i){r<=0||o<=0||(t|=0,n|=0,r|=0,o|=0,i.shadow!==void 0&&(e.fill(t+1,n+o,r,1,i.shadow),e.fill(t+r,n+1,1,o-1,i.shadow)),e.fill(t+1,n+1,r-2,o-2,i.fill),A(e,t,n,r,o,i.border),r>2&&o>2&&(e.fill(t+1,n+1,r-2,1,i.light),e.fill(t+1,n+1,1,o-2,i.light),e.fill(t+1,n+o-2,r-2,1,i.dark),e.fill(t+r-2,n+1,1,o-2,i.dark)))}function Wt(e,t,n,r,o,i){Ct(e,t,n,r,o,{...i,light:i.dark,dark:i.light,shadow:void 0})}function Me(e){if(!(e>0)||!Number.isFinite(e))return 1;let t=Math.floor(Math.log10(e)),n=Math.pow(10,t),r=e/n;return(r<=1?1:r<=2?2:r<=5?5:10)*n}function Se(e){let t=Math.floor(Math.log10(e)+1e-9),n=Math.pow(10,t),r=Math.round(e/n);return r<2?2*n:r<5?5*n:10*n}function yt(e,t){let n=Math.max(0,-Math.floor(Math.log10(t)+1e-9)),r=Math.pow(10,Math.min(12,n));return Math.round(e*r)/r}function qt(e,t,n,r={}){let o=Math.max(1,r.targetSteps??4),i=Math.max(2,r.minPxPerStep??8),s=r.includeZero??!0,a=Math.min(e,t),h=Math.max(e,t);if(s&&(a=Math.min(0,a),h=Math.max(0,h)),a===h)if(a===0)h=1;else{let x=Math.abs(a)*.5;a-=x,h+=x}let l=Me((h-a)/o),c=Math.floor(a/l)*l,u=Math.ceil(h/l)*l,m=Math.max(1,Math.round((u-c)/l)),d=0;for(;Math.floor(n/m)<i&&d++<32&&(l=Se(l),c=Math.floor(a/l)*l,u=Math.ceil(h/l)*l,m=Math.max(1,Math.round((u-c)/l)),m!==1););let p=Math.max(1,Math.floor(n/m)),g=p*m,f=[];for(let x=0;x<=m;x++)f.push(yt(c+x*l,l));return{min:yt(c,l),max:yt(u,l),step:l,stepCount:m,pxPerStep:p,length:g,slack:n-g,ticks:f}}function Nt(e){return Math.max(0,Math.min(12,-Math.floor(Math.log10(e)+1e-9)))}function ke(e,t,n,r={}){let o=r.origin??0,i=r.flip??!1,s=t-e||1,a=h=>{let l=(h-e)/s;return i?o+n-l*n:o+l*n};return{raw:a,px:h=>Math.round(a(h)),invert:h=>{let l=i?(o+n-h)/n:(h-o)/n;return e+l*s},min:e,max:t,length:n}}function Xt(e,t={}){return ke(e.min,e.max,e.length,t)}function lt(e=1){let t=Nt(e);return n=>{let r=Math.abs(n);return r>=1e9?wt(n/1e9)+"b":r>=1e6?wt(n/1e6)+"m":r>=1e4?wt(n/1e3)+"k":t>0?n.toFixed(t):String(Math.round(n))}}function wt(e){let t=e.toFixed(1);return t.endsWith(".0")?t.slice(0,-2):t}var P=5;function Fe(e,t){return t.datasets.map((n,r)=>({label:n.label,color:n.color!==void 0?rt(n.color):at(e.theme,r)}))}function Mt(e,t,n){let r=e.font.height+2,o=[],i=0,s=0;for(let h of t){let l=P+2+O(e.font,h.label);i>0&&i+l>n&&(s++,i=0),o.push({label:h.label,color:h.color,x:i,y:s*r,w:l}),i+=l+6}let a=t.length?s+1:0;return{items:o,rows:a,height:a*r}}function N(e,t,n,r){let{fb:o,font:i,theme:s}=e;for(let a of t.items){let h=n+a.x,l=r+a.y,c=l+(i.height-P>>1);o.fill(h,c,P,P,a.color),A(o,h,c,P,P,F(a.color,.45)),L(o,i,h+P+2,l,a.label,s.inkSoft)}}function ht(e,t,n,r){let{font:o}=e,i={top:n.padding?.top??3,right:n.padding?.right??4,bottom:n.padding?.bottom??3,left:n.padding?.left??3},s=i.top;n.title&&(s+=o.height+4);let h=(n.showLegend??!0)&&t.datasets.length>1?Mt(e,Fe(e,t),e.width-i.left-i.right):null,l=e.height-i.bottom,c=l-(h?.height??0);h&&(l-=h.height+2),r.categoryLabels&&(l-=o.height+3);let{min:u,max:m}=De(t),d=Math.max(8,l-s),p=qt(u,m,d,{targetSteps:n.targetSteps??4,includeZero:n.includeZero??r.includeZeroDefault,minPxPerStep:o.height+3}),g=n.format??lt(p.step),f=0;for(let M of p.ticks)f=Math.max(f,O(o,g(M)));f=Math.min(f,Math.max(6,Math.floor(e.width/3)));let x=i.left+f+3,b={x,y:s+p.slack,w:Math.max(4,e.width-i.right-x),h:p.length},C=Xt(p,{origin:b.y,flip:!0}),w=C.px(0>=p.min&&0<=p.max?0:p.min);return{plot:b,fit:p,y:C,zeroY:w,format:g,labelY:b.y+b.h+3,legend:h,legendY:c}}function ut(e,t,n){let{fb:r,font:o,theme:i}=e,s={top:n.padding?.top??3,left:n.padding?.left??3};n.title&&L(r,o,s.left,s.top,n.title,i.ink,{shadow:i.light,shadowOffset:[0,1]});let{plot:a}=t;Wt(r,a.x-1,a.y-1,a.w+2,a.h+2,{fill:i.plot,border:i.ink,light:i.light,dark:i.dark});for(let h of t.fit.ticks){let l=t.y.px(h);h!==t.fit.min&&Yt(r,a.x,l,a.w,i.grid,2),L(r,o,a.x-3,l-(o.baseline-1),t.format(h),i.inkSoft,{align:"right"})}}function ct(e,t,n,r){let{fb:o,font:i,theme:s}=e,a=Math.min(t.length,n.length);if(a===0)return;let h=[],l=[];for(let u=0;u<a;u++){let m=O(i,t[u]??"");h.push(m);let d=m>>1;l.push(q(n[u],d,e.width-1-(m-d))-d)}let c=1;for(;c<=a&&!Le(l,h,a,c);c++);if(!(c>a))for(let u=0;u<a;u+=c){let m=t[u];m&&L(o,i,l[u],r,m,s.inkSoft)}}function Le(e,t,n,r){let o=-1/0;for(let i=0;i<n;i+=r){if(e[i]<o+2)return!1;o=e[i]+t[i]}return!0}function X(e,t,n,r){let{fb:o,font:i,theme:s}=e;if(!t.length)return;let h=r?.some(g=>g!==null)??!1?P+2:0,l=0;t.forEach((g,f)=>{let x=O(i,g)+(r?.[f]?h:0);l=Math.max(l,x)});let c=l+6,u=t.length*(i.height+1)+5,m=n.anchorX-(c>>1),d=n.anchorY-u-3;m=q(m,1,Math.max(1,e.width-c-2)),d<1&&(d=Math.min(n.anchorY+6,e.height-u-2)),d=q(d,1,Math.max(1,e.height-u-2)),Ct(o,m,d,c,u,{fill:s.panel,border:s.ink,light:s.light,dark:s.dark,shadow:s.shadow});let p=_(s.panel)>.5?s.ink:s.light;t.forEach((g,f)=>{let x=d+3+f*(i.height+1),b=r?.[f];if(b){let C=x+(i.height-P>>1);o.fill(m+3,C,P,P,b),A(o,m+3,C,P,P,F(b,.45))}L(o,i,m+3+(b?h:0),x,g,p)})}function De(e){let t=1/0,n=-1/0;for(let r of e.datasets)for(let o of r.data)Number.isFinite(o)&&(o<t&&(t=o),o>n&&(n=o));return t===1/0?{min:0,max:1}:{min:t,max:n}}function z(e,t,n){let r=n.datasets[t];return r?.color!==void 0?rt(r.color):at(e.theme,t)}function q(e,t,n){return e<t?t:e>n?n:e}function Kt(e,t,n,r){let{fb:o,font:i,theme:s}=e;o.clear(s.bg);let a=ht(e,t,n,{includeZeroDefault:!0,categoryLabels:!0});ut(e,a,n);let{plot:h,y:l,zeroY:c,format:u}=a,m=t.datasets,d=_t(t.labels.length,h.w,{paddingInner:n.barPadding??.3,paddingOuter:.15,origin:h.x}),p=[];o.pushClip(h.x,h.y,h.w,h.h);for(let g of d.bands){let f=Vt(g,Math.max(1,m.length),1);m.forEach((x,b)=>{let C=x.data[g.index];if(C===void 0||!Number.isFinite(C))return;let w=f[b],M=l.px(C),S=Math.min(M,c),R=Math.max(1,Math.abs(M-c)),T=z(e,b,t),I=r.hover?.datasetIndex===b&&r.hover?.pointIndex===g.index;if(Pe(o,w.start,S,w.size,R,T,I),p.push({x:w.start,y:S,w:w.size,h:R,datasetIndex:b,pointIndex:g.index,anchorX:w.start+(w.size>>1),anchorY:S}),n.showValues&&w.size>=7){let E=u(C);if(O(i,E)<=w.size+4){let Z=M<=c,H=Z?S-i.height:S+R+1,y=s.ink;Z&&H<h.y?(H=S+1,y=Jt(T)):!Z&&H+i.height>h.y+h.h&&(H=S+R-i.height-1,y=Jt(T)),L(o,i,w.start+(w.size>>1),H,E,y,{align:"center"})}}})}if(o.popClip(),o.fill(h.x,c,h.w,1,s.ink),ct(e,t.labels,d.bands.map(g=>g.center),a.labelY),a.legend&&N(e,a.legend,h.x,a.legendY),r.hover){let g=m[r.hover.datasetIndex],f=g?.data[r.hover.pointIndex];if(g&&f!==void 0){let b=[t.labels[r.hover.pointIndex]??"",g.label?`${g.label}: ${u(f)}`:u(f)].filter(Boolean);X(e,b,r.hover)}}return{plot:h,hitTest(g,f){for(let x=p.length-1;x>=0;x--){let b=p[x];if(g>=b.x&&g<b.x+b.w&&f>=b.y&&f<b.y+b.h)return b}return null}}}function Pe(e,t,n,r,o,i,s){let a=s?D(i,.18):i;e.fill(t,n,r,o,a),o>=3&&r>=3&&(e.fill(t+1,n+1,r-2,1,D(a,.3)),e.fill(t+1,n+o-2,r-2,1,F(a,.18)),e.fill(t+1,n+1,1,o-2,D(a,.15)),e.fill(t+r-2,n+1,1,o-2,F(a,.12))),A(e,t,n,r,o,F(i,.45)),s&&o>=4&&r>=4&&zt(e,t+1,n+1,r-2,o-2,D(a,.35),null,0)}function Jt(e){return _(e)>.5?F(e,.7):D(e,.8)}var Y=3;function te(e,t,n,r){let{fb:o,theme:i}=e;o.clear(i.bg);let s=ht(e,t,n,{includeZeroDefault:!1,categoryLabels:!0});ut(e,s,n);let{plot:a,y:h,zeroY:l,format:c}=s,u=t.labels.length,m=[];for(let f=0;f<u;f++)m.push(u===1?a.x+(a.w>>1):a.x+Math.round(f*(a.w-1)/(u-1)));let d=u>1?(a.w-1)/(u-1):a.w,p=n.showPoints??d>=8;o.pushClip(a.x,a.y,a.w,a.h);let g=t.datasets.map((f,x)=>({color:z(e,x,t),points:Te(f.data,m,h,n.stepped??!1)}));n.area&&g.forEach((f,x)=>{if(f.points.length<2)return;let b=[[f.points[0][0],l],...f.points,[f.points[f.points.length-1][0],l]];Zt(o,b,f.color,Math.max(2,7-x*2))});for(let f of g)f.points.length===1?Qt(o,f.points[0][0],f.points[0][1],f.color,!1):n.outlined?Ut(o,f.points,f.color,F(f.color,.5)):st(o,f.points,f.color);if(p){let f=r.hover?m[r.hover.pointIndex]:void 0;g.forEach((x,b)=>{for(let[C,w]of x.points){let M=C===f&&r.hover?.datasetIndex===b;Qt(o,C,w,x.color,M)}})}if(r.hover){let f=m[r.hover.pointIndex];f!==void 0&&$t(o,f,a.y,a.h,i.inkSoft,2)}if(o.popClip(),s.fit.min<=0&&s.fit.max>=0&&o.fill(a.x,l,a.w,1,i.ink),ct(e,t.labels,m,s.labelY),s.legend&&N(e,s.legend,a.x,s.legendY),r.hover){let f=r.hover.pointIndex,x=[t.labels[f]??""],b=[null];t.datasets.forEach((C,w)=>{let M=C.data[f];M===void 0||!Number.isFinite(M)||(x.push(C.label?`${C.label}: ${c(M)}`:c(M)),b.push(z(e,w,t)))}),X(e,x.filter(Boolean),r.hover,b)}return{plot:a,hitTest(f,x){if(x<a.y-4||x>a.y+a.h+4||f<a.x-4||f>a.x+a.w+4||!m.length)return null;let b=0;for(let S=1;S<m.length;S++)Math.abs(m[S]-f)<Math.abs(m[b]-f)&&(b=S);let C=0,w=1/0,M=a.y;return g.forEach((S,R)=>{let T=S.points.find(E=>E[0]===m[b]);if(!T)return;let I=Math.abs(T[1]-x);I<w&&(w=I,C=R,M=T[1])}),{datasetIndex:C,pointIndex:b,anchorX:m[b],anchorY:M-Y}}}}function Te(e,t,n,r){let o=[];for(let i=0;i<t.length;i++){let s=e[i];if(s===void 0||!Number.isFinite(s))continue;let a=n.px(s);r&&o.length&&o.push([t[i],o[o.length-1][1]]),o.push([t[i],a])}return o}function Qt(e,t,n,r,o){let i=Y>>1,s=o?D(r,.4):r;e.fill(t-i,n-i,Y,Y,s),A(e,t-i-1,n-i-1,Y+2,Y+2,F(r,.5)),o&&A(e,t-i-2,n-i-2,Y+4,Y+4,D(r,.5))}var $=Math.PI*2;function re(e,t,n,r){let{fb:o,font:i,theme:s}=e;o.clear(s.bg);let a={top:n.padding?.top??3,right:n.padding?.right??4,bottom:n.padding?.bottom??3,left:n.padding?.left??3},h=a.top;n.title&&(L(o,i,a.left,a.top,n.title,s.ink,{shadow:s.light,shadowOffset:[0,1]}),h+=i.height+4);let l=t.datasets[0]?.data??[],c=l.reduce((y,k)=>Number.isFinite(k)&&k>0?y+k:y,0),u=n.format??lt(1),d=n.showLegend??!0?Mt(e,t.labels.map((y,k)=>({label:c>0?`${y} ${Math.round(l[k]/c*100)}%`:y,color:z(e,k,t)})),e.width-a.left-a.right):null,p=e.height-a.bottom-(d?.height??0),g=d?p-3:e.height-a.bottom;if(d&&N(e,d,a.left,p),c<=0)return{hitTest:()=>null};let f=Math.max(0,Math.round(n.depth??0)),x=q(n.tilt??(f>0?.62:1),.2,1),b=q(n.donut??0,0,.9),C=e.width-a.left-a.right,w=Math.max(8,g-h),M=Math.max(3,Math.min(C-2>>1,Math.floor((w-2-f)/(2*x)))),S=Math.max(2,Math.round(M*x)),R=a.left+(C>>1),T=h+Math.floor((w-f)/2),I=(n.startAngle??0)*Math.PI/180-Math.PI/2,E=[],Z=0;l.forEach((y,k)=>{if(!Number.isFinite(y)||y<=0)return;let B=y/c;E.push({index:k,value:y,fraction:B,from:Z*$,to:(Z+B)*$,color:z(e,k,t)}),Z+=B});let H=Oe(E,R,T,M,S,b,I);for(let y=f;y>=1;y--)ne(e,H,0,y,k=>F(ee(k,r),.42));if(ne(e,H,0,0,y=>ee(y,r)),f>0&&Ee(e,H,f),Re(e,H),n.showPercent&&He(e,E,R,T,M,S,b,I),r.hover){let y=E.find(k=>k.index===r.hover.pointIndex);if(y){let k=t.labels[y.index]??"",B=`${(y.fraction*100).toFixed(y.fraction<.01?1:0)}%`;X(e,[k,`${u(y.value)} (${B})`].filter(Boolean),r.hover)}}return{hitTest(y,k){let B=(y-R)/M,pt=(k-T)/S,Ot=B*B+pt*pt;if(Ot>1||Ot<b*b)return null;let et=Math.atan2(pt,B)-I;et=(et%$+$)%$;let nt=E.find(Et=>et>=Et.from&&et<Et.to);if(!nt)return null;let Rt=(nt.from+nt.to)/2+I;return{datasetIndex:0,pointIndex:nt.index,anchorX:Math.round(R+Math.cos(Rt)*M*.7),anchorY:Math.round(T+Math.sin(Rt)*S*.7)}}}}function Oe(e,t,n,r,o,i,s){let a=t-r-1,h=n-o-1,l=2*r+3,c=2*o+3,u=new Uint16Array(l*c),m=i*i;for(let d=0;d<c;d++){let p=(h+d-n)/o;for(let g=0;g<l;g++){let f=(a+g-t)/r,x=f*f+p*p;if(x>1||x<m)continue;let b=Math.atan2(p,f)-s;b=(b%$+$)%$;for(let C=0;C<e.length;C++)if(b>=e[C].from&&b<e[C].to){u[d*l+g]=C+1;break}}}return{ids:u,slices:e,x0:a,y0:h,w:l,h:c}}function ee(e,t){return t.hover?.pointIndex===e.index?D(e.color,.22):e.color}function ne(e,t,n,r,o){let i=t.slices.map(o);for(let s=0;s<t.h;s++)for(let a=0;a<t.w;a++){let h=t.ids[s*t.w+a];h!==0&&e.fb.set(t.x0+a+n,t.y0+s+r,i[h-1])}}function Re(e,t){let{ids:n,w:r,h:o,x0:i,y0:s,slices:a}=t,h=c=>F(a[c-1].color,.5);for(let c=0;c<o;c++)for(let u=0;u<r;u++){let m=n[c*r+u];u+1<r&&l(m,n[c*r+u+1],u,c,u+1,c),c+1<o&&l(m,n[(c+1)*r+u],u,c,u,c+1)}function l(c,u,m,d,p,g){c!==u&&(c!==0?e.fb.set(i+m,s+d,h(c)):e.fb.set(i+p,s+g,h(u)))}}function Ee(e,t,n){let{ids:r,w:o,h:i,x0:s,y0:a,slices:h}=t,l=(c,u)=>{if(c<0||u<0||c>=o)return 0;for(let m=0;m<=n;m++){let d=u-m;if(d>=0&&d<i&&r[d*o+c]!==0)return r[d*o+c]}return 0};for(let c=0;c<i+n;c++)for(let u=0;u<o;u++){let m=l(u,c);m===0||c<i&&r[c*o+u]!==0||(l(u+1,c)===0||l(u,c+1)===0)&&e.fb.set(s+u,a+c,F(h[m-1].color,.62))}}function He(e,t,n,r,o,i,s,a){let{fb:h,font:l}=e,c=s>0?(1+s)/2:.62;for(let u of t){let m=Math.round(u.fraction*100);if(m<1)continue;let d=`${m}%`,p=O(l,d);if((u.to-u.from)*o*c<p+3||i*c<l.height)continue;let f=(u.from+u.to)/2+a,x=Math.round(n+Math.cos(f)*o*c),b=Math.round(r+Math.sin(f)*i*c),C=_(u.color)>.5?F(u.color,.72):D(u.color,.85);L(h,l,x,b,d,C,{align:"center",valign:"middle"})}}function oe(){let e=document.createElement("div");return Object.assign(e.style,{position:"absolute",width:"1px",height:"1px",margin:"-1px",padding:"0",overflow:"hidden",clip:"rect(0 0 0 0)",clipPath:"inset(50%)",whiteSpace:"nowrap",border:"0"}),e}function ie(e,t,n){let r=n.format??(s=>String(s)),o=[];o.push('<tr><th scope="col">Category</th>');for(let s of t.datasets)o.push(`<th scope="col">${mt(s.label)}</th>`);o.push("</tr>"),t.labels.forEach((s,a)=>{o.push(`<tr><th scope="row">${mt(s)}</th>`);for(let h of t.datasets){let l=h.data[a];o.push(`<td>${l===void 0?"":mt(r(l))}</td>`)}o.push("</tr>")});let i=n.title?`<caption>${mt(n.title)}</caption>`:"";e.innerHTML=`<table>${i}${o.join("")}</table>`}function mt(e){return e.replace(/[&<>"]/g,t=>t==="&"?"&amp;":t==="<"?"&lt;":t===">"?"&gt;":"&quot;")}var Ae=J(K),ft=class{constructor(t,n){this.result=null;this.hover=null;this.frame=0;this.observer=null;this.touching=!1;this.onPointerDown=t=>{t.pointerType!=="mouse"&&(this.touching=!0,this.updateHover(t))};this.onPointerMove=t=>{t.pointerType!=="mouse"&&!this.touching||this.updateHover(t)};this.onPointerUp=()=>{this.touching=!1};this.onPointerCancel=()=>{this.touching=!1,this.hover&&(this.hover=null,this.invalidate())};this.onPointerLeave=t=>{t.pointerType==="mouse"&&this.hover&&(this.hover=null,this.invalidate())};let r=typeof t=="string"?document.querySelector(t):t;if(!r)throw new Error(`volter-graph: no element matching ${String(t)}`);this.config=n,this.font=n.font??Ae,getComputedStyle(r).position==="static"&&(r.style.position="relative"),this.renderer=new it(r,n.render),this.table=oe(),r.appendChild(this.table);let o=this.renderer.canvas;o.addEventListener("pointermove",this.onPointerMove),o.addEventListener("pointerdown",this.onPointerDown),o.addEventListener("pointerup",this.onPointerUp),o.addEventListener("pointercancel",this.onPointerCancel),o.addEventListener("pointerleave",this.onPointerLeave),typeof ResizeObserver<"u"&&(this.observer=new ResizeObserver(()=>this.handleResize()),this.observer.observe(r)),this.render()}setData(t){this.config.data=t,this.hover=null,this.render()}setOptions(t){this.config.options={...this.config.options,...t},this.render()}render(){let t=this.config.options??{},n={fb:this.renderer.fb,font:this.font,theme:vt(t.theme),width:this.renderer.fb.width,height:this.renderer.fb.height},r={hover:this.hover};switch(this.config.type){case"line":this.result=te(n,this.config.data,this.config.options??{},r);break;case"pie":this.result=re(n,this.config.data,this.config.options??{},r);break;default:this.result=Kt(n,this.config.data,this.config.options??{},r)}this.renderer.present(),ie(this.table,this.config.data,t)}invalidate(){this.frame||(this.frame=requestAnimationFrame(()=>{this.frame=0,this.render()}))}destroy(){this.frame&&cancelAnimationFrame(this.frame),this.observer?.disconnect();let t=this.renderer.canvas;t.removeEventListener("pointermove",this.onPointerMove),t.removeEventListener("pointerdown",this.onPointerDown),t.removeEventListener("pointerup",this.onPointerUp),t.removeEventListener("pointercancel",this.onPointerCancel),t.removeEventListener("pointerleave",this.onPointerLeave),this.renderer.destroy(),this.table.remove()}handleResize(){this.renderer.resize()&&this.invalidate()}updateHover(t){let{x:n,y:r}=this.renderer.toLogical(t.clientX,t.clientY),o=this.result?.hitTest(n,r)??null;Ie(o,this.hover)||(this.hover=o,this.invalidate())}};function Ie(e,t){return e===t?!0:!e||!t?!1:e.datasetIndex===t.datasetIndex&&e.pointIndex===t.pointIndex}var St=J(K);function Be(e,t={}){let n=Math.max(1,Math.floor(t.scale??4)),r=t.tracking??0,o=v(t.color??"#000000"),i=t.shadow?v(t.shadow):void 0,s=O(St,e)+r*Math.max(0,e.length-1)+(i?1:0),a=St.height+(i?1:0),h=new j(Math.max(1,s),a);L(h,St,0,0,e,o,{letterSpacing:r,shadow:i,shadowOffset:[1,1]});let l=document.createElement("canvas"),c=Math.max(1,Math.floor(window.devicePixelRatio||1));l.width=h.width*n*c,l.height=h.height*n*c,l.style.width=`${h.width*n}px`,l.style.height=`${h.height*n}px`,l.style.display="block",l.setAttribute("role","img"),l.setAttribute("aria-label",e);let u=document.createElement("canvas");u.width=h.width,u.height=h.height;let m=u.getContext("2d"),d=m.createImageData(h.width,h.height);d.data.set(h.bytes()),m.putImageData(d,0,0);let p=l.getContext("2d");return p.imageSmoothingEnabled=!1,p.drawImage(u,0,0,l.width,l.height),l}function ae(e,t,n={}){e.replaceChildren(Be(t,n))}var kt=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],se={labels:kt,datasets:[{label:"Throne",data:[210,225,240,232,255,270,262,288,305,298,320,345]},{label:"Dragon Lamp",data:[165,172,180,178,190,120,108,115,128,140,152,165]},{label:"HC Sofa",data:[88,92,95,101,104,110,108,115,122,119,128,134]}]},le={labels:["Throne","Dragon","Sofa","Decks","Duck","Petals"],datasets:[{label:"Trades",data:[1240,980,1520,640,410,320]}]},he={labels:["Rares","Catalogue","Habbo Club","Room decor","Badges"],datasets:[{label:"Credits",data:[42,23,15,12,8]}]},ue={labels:["Throne","Dragon","Sofa","Decks","Duck","Petals"],datasets:[{label:"Change",data:[18,-42,7,-12,25,-8]}]},ce={labels:["00","02","04","06","08","10","12","14","16","18","20","22"],datasets:[{label:"Habbos",data:[120,80,55,40,65,140,260,420,610,780,690,380]}]};function me(){let e=(t,n,r=-1)=>{let o=t;return kt.map((i,s)=>(o=Math.max(20,o+(Math.random()-.35)*n),s===r&&(o*=.6),Math.round(o)))};return{labels:kt,datasets:[{label:"Throne",data:e(210,40)},{label:"Dragon Lamp",data:e(165,32,5)},{label:"HC Sofa",data:e(88,20)}]}}var fe=window.matchMedia("(prefers-color-scheme: dark)");function Dt(){let e=document.documentElement.dataset.theme;return e==="dark"?W:e==="light"?V:fe.matches?W:V}var de=[];function Q(e,t){let n=new ft(e,t);return de.push(n),n}function Pt(){let e=document.querySelector("#wordmark");if(!e)return;let t=Dt()===W;ae(e,"VOLTER GRAPH",{scale:window.innerWidth<560?5:7,tracking:1,color:t?"#f2c14e":"#2b2b3a",shadow:t?"#0c0e14":"#fffdf6"})}var tt=Dt(),Tt=Q("#rares",{type:"line",data:se,options:{theme:tt,title:"Rare trade value (credits)",area:!1,includeZero:!0,targetSteps:4}});Q("#spend",{type:"pie",data:he,options:{theme:tt,title:"Credit spend",donut:.5,showPercent:!0}});Q("#volume",{type:"bar",data:le,options:{theme:tt,title:"Trades cleared",showValues:!0}});Q("#change",{type:"bar",data:ue,options:{theme:tt,title:"Value change (credits)",showValues:!0}});Q("#population",{type:"line",data:ce,options:{theme:tt,title:"Habbos online",stepped:!0,area:!0,includeZero:!0}});Pt();var dt=!1,Ft=!0;document.querySelector("#reshuffle")?.addEventListener("click",()=>{Tt.setData(me())});document.querySelector("#toggle-area")?.addEventListener("click",e=>{dt=!dt,Tt.setOptions({area:dt}),e.currentTarget.textContent=dt?"Hide fills":"Show fills"});document.querySelector("#toggle-points")?.addEventListener("click",()=>{Ft=!Ft,Tt.setOptions({showPoints:Ft})});function pe(){let e=Dt();for(let t of de)t.setOptions({theme:e});Pt()}fe.addEventListener("change",pe);new MutationObserver(pe).observe(document.documentElement,{attributes:!0,attributeFilter:["data-theme"]});var Lt=0;window.addEventListener("resize",()=>{Lt||(Lt=requestAnimationFrame(()=>{Lt=0,Pt()}))});})();</script>
+</body>
+</html>
