@@ -90,7 +90,12 @@ export function drawLegend(
 /* ----------------------------------------------------------- cartesian box */
 
 export interface CartesianLayout {
+  /** The axis band: gridlines, ticks and data all align to this. */
   plot: Rect;
+  /** `plot` grown by `pointPad`, i.e. the region charts may clip to. */
+  canvas: Rect;
+  /** Resolved vertical pad, in logical pixels. */
+  pointPad: number;
   fit: AxisFit;
   y: LinearScale;
   /** Pixel row of the zero line, or the axis minimum when zero is outside. */
@@ -106,6 +111,13 @@ export interface CartesianOptions {
   includeZeroDefault: boolean;
   /** Reserve a row under the plot for category labels. */
   categoryLabels: boolean;
+  /**
+   * Vertical breathing room, in logical pixels, between the axis band and the
+   * area a chart may draw into. Charts that plot points use it so a marker at
+   * the axis maximum is not clipped in half; bars leave it at zero because
+   * they are anchored to the baseline and have nothing to overhang with.
+   */
+  pointPad?: number;
 }
 
 /**
@@ -144,7 +156,20 @@ export function layoutCartesian(
   if (config.categoryLabels) bottom -= font.height + 3;
 
   const { min, max } = extent(data);
-  const availableHeight = Math.max(8, bottom - top);
+
+  /**
+   * The padding is taken out of the height *before* the axis is fitted, rather
+   * than by squeezing the finished scale afterwards.
+   *
+   * Remapping `y.px` into a shorter range would move the data but not the
+   * gridlines, so a point at 1.6k would no longer sit on the 1.6k rule — and
+   * squeezing both together would break the integer pixels-per-step that
+   * `fitAxis` exists to guarantee, giving back the uneven gridlines this
+   * library was written to avoid. Fitting into the reduced height keeps the
+   * spacing exact and moves the whole band down by `padY` instead.
+   */
+  const padY = Math.max(0, Math.round(config.pointPad ?? 0));
+  const availableHeight = Math.max(8, bottom - top - 2 * padY);
   const fit = fitAxis(min, max, availableHeight, {
     targetSteps: options.targetSteps ?? 4,
     includeZero: options.includeZero ?? config.includeZeroDefault,
@@ -161,9 +186,18 @@ export function layoutCartesian(
   const plotX = pad.left + gutter + 3;
   const plot: Rect = {
     x: plotX,
-    y: top + fit.slack,
+    y: top + fit.slack + padY,
     w: Math.max(4, ctx.width - pad.right - plotX),
     h: fit.length,
+  };
+
+  // Where a chart may actually paint: the axis band plus the pad it was given,
+  // so a marker sitting on the top or bottom rule still lands whole.
+  const canvas: Rect = {
+    x: plot.x,
+    y: plot.y - padY,
+    w: plot.w,
+    h: plot.h + 2 * padY,
   };
 
   const y = scaleFromFit(fit, { origin: plot.y, flip: true });
@@ -171,11 +205,13 @@ export function layoutCartesian(
 
   return {
     plot,
+    canvas,
+    pointPad: padY,
     fit,
     y,
     zeroY,
     format,
-    labelY: plot.y + plot.h + 3,
+    labelY: canvas.y + canvas.h + 3,
     legend,
     legendY,
   };
@@ -197,13 +233,15 @@ export function drawCartesianFrame(
     });
   }
 
-  const { plot } = layout;
-  inset(fb, plot.x - 1, plot.y - 1, plot.w + 2, plot.h + 2, {
-    fill: theme.plot,
-    border: theme.ink,
-    light: theme.light,
-    dark: theme.dark,
-  });
+  const { plot, canvas } = layout;
+  if (options.plotFrame !== false) {
+    inset(fb, canvas.x - 1, canvas.y - 1, canvas.w + 2, canvas.h + 2, {
+      fill: theme.plot,
+      border: theme.ink,
+      light: theme.light,
+      dark: theme.dark,
+    });
+  }
 
   for (const tick of layout.fit.ticks) {
     const py = layout.y.px(tick);

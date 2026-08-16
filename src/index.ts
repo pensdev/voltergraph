@@ -218,7 +218,7 @@ export type { CanvasRendererOptions } from './render/canvas.js';
 export { drawBarChart } from './charts/bar.js';
 export { drawLineChart } from './charts/line.js';
 export { drawPieChart } from './charts/pie.js';
-export { defaultFormat } from './charts/format.js';
+export { defaultFormat, compactFormat } from './charts/format.js';
 export type {
   BarOptions,
   ChartData,
