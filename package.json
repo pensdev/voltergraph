@@ -45,7 +45,7 @@
     "vite": "^6.0.5",
     "vitest": "^2.1.8"
   },
-  "author": "Zach Crandell (https://github.com/pensdev)",
+  "author": "Pensdev (https://github.com/pensdev)",
   "homepage": "https://pensdev.github.io/voltergraph/",
   "repository": {
     "type": "git",
