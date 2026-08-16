@@ -36,26 +36,36 @@ export function drawLineChart(
   const { fb, theme } = ctx;
   fb.clear(theme.bg);
 
+  // A resting marker needs 2px of clearance and its hover ring needs 3, so
+  // MARKER + 1 leaves a pixel in hand rather than sitting exactly on the limit.
+  const pointPad = Math.max(0, Math.round(options.pointPad ?? MARKER + 1));
+
   const layout = layoutCartesian(ctx, data, options, {
     includeZeroDefault: false,
     categoryLabels: true,
+    pointPad,
   });
   drawCartesianFrame(ctx, layout, options);
 
-  const { plot, y, zeroY, format } = layout;
+  const { plot, canvas, y, zeroY, format } = layout;
   const n = data.labels.length;
+
+  // Inset horizontally too, but never past the point of collapsing the axis.
+  const padX = Math.min(pointPad, Math.max(0, (plot.w - 1) >> 1));
+  const originX = plot.x + padX;
+  const spanX = Math.max(0, plot.w - 1 - 2 * padX);
 
   // Points sit on evenly divided columns derived from one cumulative rounding,
   // so spacing never drifts by more than a pixel across the axis.
   const columns: number[] = [];
   for (let i = 0; i < n; i++) {
-    columns.push(n === 1 ? plot.x + (plot.w >> 1) : plot.x + Math.round((i * (plot.w - 1)) / (n - 1)));
+    columns.push(n === 1 ? plot.x + (plot.w >> 1) : originX + Math.round((i * spanX) / (n - 1)));
   }
 
-  const spacing = n > 1 ? (plot.w - 1) / (n - 1) : plot.w;
+  const spacing = n > 1 ? spanX / (n - 1) : spanX;
   const showPoints = options.showPoints ?? spacing >= 8;
 
-  fb.pushClip(plot.x, plot.y, plot.w, plot.h);
+  fb.pushClip(canvas.x, canvas.y, canvas.w, canvas.h);
 
   const series = data.datasets.map((ds, di) => ({
     color: datasetColor(ctx, di, data),
@@ -100,7 +110,7 @@ export function drawLineChart(
   // Crosshair rule under the hovered column.
   if (state.hover) {
     const cx = columns[state.hover.pointIndex];
-    if (cx !== undefined) dottedVLine(fb, cx, plot.y, plot.h, theme.inkSoft, 2);
+    if (cx !== undefined) dottedVLine(fb, cx, canvas.y, canvas.h, theme.inkSoft, 2);
   }
 
   fb.popClip();
@@ -129,8 +139,8 @@ export function drawLineChart(
   return {
     plot,
     hitTest(px, py) {
-      if (py < plot.y - 4 || py > plot.y + plot.h + 4) return null;
-      if (px < plot.x - 4 || px > plot.x + plot.w + 4) return null;
+      if (py < canvas.y - 4 || py > canvas.y + canvas.h + 4) return null;
+      if (px < canvas.x - 4 || px > canvas.x + canvas.w + 4) return null;
       if (!columns.length) return null;
 
       // Snap to the nearest column: on a phone a fingertip covers ~40px, so

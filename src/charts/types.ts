@@ -25,6 +25,12 @@ export interface ChartOptions {
   includeZero?: boolean;
   /** Draw a legend when there is more than one series. Default true. */
   showLegend?: boolean;
+  /**
+   * Draw the beveled well around the plot. Default true. Set false to sit the
+   * chart directly on a card that already provides its own container, so the
+   * reader is not looking at a box inside a box. Gridlines and axes remain.
+   */
+  plotFrame?: boolean;
   padding?: { top?: number; right?: number; bottom?: number; left?: number };
 }
 
@@ -44,6 +50,17 @@ export interface LineOptions extends ChartOptions {
   stepped?: boolean;
   /** 1px dark outline around each line, for contrast over busy fills. */
   outlined?: boolean;
+  /**
+   * Logical pixels of breathing room between the outermost points and the edge
+   * of the plot, on all four sides. Without it the first and last points sit
+   * on the left and right plot edges, and a point at the axis maximum sits on
+   * the top edge, so their markers are half cut off by the clip.
+   *
+   * Defaults to marker width plus one. A resting marker needs 2px of
+   * clearance and its hover ring 3, so the default keeps a pixel in hand.
+   * Set 0 to restore edge-to-edge points.
+   */
+  pointPad?: number;
 }
 
 export interface PieOptions extends ChartOptions {
